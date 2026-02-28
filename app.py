@@ -8,76 +8,70 @@ from streamlit_autorefresh import st_autorefresh
 st.set_page_config(page_title="FX Global Intelligence Hub", layout="wide")
 st_autorefresh(interval=300000, key="master_refresher")
 
-# 2. RSS NEWS ENGINE (Real-time Geopolitical Feed)
+# 2. RSS NEWS ENGINE
 def get_live_news():
     try:
-        # Al Jazeera's Geopolitics feed is highly responsive to US/Global trade news
         rss_url = "https://www.aljazeera.com/xml/rss/all.xml"
         feed = feedparser.parse(rss_url)
         return feed.entries[:6]
     except:
         return []
 
-# 3. THE MASTER DATA (Consolidated Intelligence)
+# 3. THE MASTER DATA (Consolidated Intelligence - Feb 28, 2026)
 market_logic = {
     "AUDUSD=X": {
         "name": "AUD/USD", "score": 9, "bank": "RBA", "status": "Hawkish",
-        "note": "RBA hiked to 3.85% (Feb 3). Highest yield in G10.",
-        "deep": "**RBA Divergence:** Governor Bullock remains aggressive while others pause. Bullish momentum above 0.7100 is supported by high commodity prices."
+        "note": "RBA 3.85% hike (Feb). Top carry trade choice.",
+        "deep": "**RBA Divergence:** Governor Bullock remains aggressive. Watch for household spending data this Monday to confirm if more hikes are needed."
     },
     "USDCAD=X": {
         "name": "USD/CAD", "score": 8, "bank": "BoC", "status": "Cautious",
-        "note": "CAD under pressure from Section 122 tariff threats.",
-        "deep": "**The Tariff Proxy:** Despite SCOTUS rulings, the administration's pivot to Section 122 keeps the CAD weak. Resistance at 1.3850 is critical."
+        "note": "Weakness persists on Section 122 tariff pivot.",
+        "deep": "**The Tariff Proxy:** Despite the SCOTUS setback, the 15% global tariff under Section 122 is now active. CAD is the primary victim."
     },
     "JPY=X": {
         "name": "USD/JPY", "score": 2, "bank": "BoJ", "status": "Weak",
-        "note": "Selling at 156.00 on intervention fears & RSI limits.",
-        "deep": "**Rubber Band Effect:** The pair is overbought. BoJ still signaling 0.75% rates despite political noise. Expect mean reversion to 154.50."
+        "note": "Sellers active at 156.50 on intervention risk.",
+        "deep": "**Rubber Band Effect:** Ueda's Tokyo speech on Tuesday is the key. Any hawkish hint will trigger a sharp move back to 153.00."
     },
     "EURUSD=X": {
         "name": "EUR/USD", "score": 5, "bank": "ECB", "status": "Neutral",
-        "note": "Stuck in 1.18 range. ECB/Fed in a waiting game.",
-        "deep": "**The Stalemate:** German CPI cooling but trade uncertainty caps gains. Neutral stance until the US NFP data on March 6."
+        "note": "Stuck at 1.18. German stimulus vs US data.",
+        "deep": "**The Stalemate:** German €1T fiscal package is providing a floor, but US manufacturing data (Monday) could break the 1.1800 level."
     },
     "GBPUSD=X": {
         "name": "GBP/USD", "score": 6, "bank": "BoE", "status": "Hold",
-        "note": "BoE held at 3.75%. Inflation expected to drop in April.",
-        "deep": "**Slight Bullish Bias:** 5-4 vote to hold at 3.75% shows a split board. Support at 1.3450 remains strong as the Dollar softens slightly."
+        "note": "BoE held at 3.75%. Support at 1.3450.",
+        "deep": "**Resilience:** Sterling is outperforming the Euro as UK inflation expectations edge higher. Watching US NFP for the next move."
     },
     "NZDUSD=X": {
         "name": "NZD/USD", "score": 4, "bank": "RBNZ", "status": "Dovish",
-        "note": "RBNZ held at 2.25%. Nascent recovery focus.",
-        "deep": "**The Laggard:** Inflation returning to target (1-3%) faster than AU. RBNZ is prioritizing growth over rates, keeping NZD weak vs AUD."
+        "note": "RBNZ prioritizing recovery over rates.",
+        "deep": "**Growth Drag:** RBNZ remains the most dovish in the Pacific. AUD/NZD long remains the preferred institutional play."
     }
 }
 
-# 4. SIDEBAR: Live News & Sentiment Heatmap
+# 4. SIDEBAR: Live News & Sentiment
 st.sidebar.title("🏛 Intelligence Hub")
-
-st.sidebar.subheader("📡 Live RSS News (Geopolitics)")
+st.sidebar.subheader("📡 Live RSS News")
 news_feed = get_live_news()
 if news_feed:
     for entry in news_feed:
-        with st.sidebar.expander(f"📌 {entry.title[:45]}...", expanded=False):
+        with st.sidebar.expander(f"📌 {entry.title[:45]}..."):
             st.write(entry.title)
             st.markdown(f"[Source Article]({entry.link})")
-else:
-    st.sidebar.write("News feed temporarily unavailable.")
 
 st.sidebar.divider()
-
-st.sidebar.subheader("🏦 Bank Sentiment tracker")
+st.sidebar.subheader("🏦 Bank Sentiment Tracker")
 for ticker, data in market_logic.items():
     color = "green" if data['score'] > 6 else "red" if data['score'] < 4 else "orange"
     st.sidebar.markdown(f"**{data['bank']}**: :{color}[{data['status']} ({data['score']}/10)]")
 
-# 5. MAIN DASHBOARD: Market Grid
+# 5. MAIN DASHBOARD
 st.title("📊 Global FX Intelligence Terminal")
-st.caption(f"Last Terminal Sync: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')} (Auto-refresh: 5 min)")
+st.caption(f"Last Sync: {pd.Timestamp.now().strftime('%H:%M')} | Auto-refresh: 5 min")
 st.divider()
 
-# Grid Layout
 row1 = st.columns(3)
 row2 = st.columns(3)
 all_cols = row1 + row2
@@ -85,30 +79,39 @@ all_cols = row1 + row2
 for i, (ticker, info) in enumerate(market_logic.items()):
     with all_cols[i]:
         try:
-            # Data Fetch
             tick = yf.Ticker(ticker)
             hist = tick.history(period="2d")
-            curr_price = hist['Close'].iloc[-1]
-            prev_price = hist['Close'].iloc[0]
-            delta = curr_price - prev_price
-            
-            # Display Metric
+            curr = hist['Close'].iloc[-1]
+            prev = hist['Close'].iloc[0]
             st.subheader(info['name'])
-            st.metric("Price", f"{curr_price:.4f}", f"{delta:.4f}")
-            
-            # Sentiment Logic
-            score = info['score']
-            bar_color = "green" if score > 6 else "red" if score < 4 else "orange"
-            st.markdown(f"**Sentiment Score: {score}/10**")
-            st.progress(score * 10)
+            st.metric("Price", f"{curr:.4f}", f"{curr-prev:.4f}")
+            st.progress(info['score'] * 10)
             st.info(info['note'])
-            
-            # Deep Analysis Integration
             with st.expander("🔍 Intelligence Deep Dive"):
                 st.write(info['deep'])
         except:
-            st.error(f"Data stream error for {info['name']}")
+            st.error(f"Stream error: {info['name']}")
 
 st.divider()
-st.subheader("💡 Terminal Strategic Insight")
-st.success("**Trade of the Week:** Long AUD/NZD. The RBA's 3.85% hike vs the RBNZ's 2.25% dovish hold represents the cleanest 'Divergence Play' in the market today.")
+
+# 6. STRATEGIC OUTLOOK: MARCH WEEK 1 (THE "GOOD PART")
+st.header("🎯 Strategic Outlook: Week of March 2, 2026")
+col_a, col_b = st.columns(2)
+
+with col_a:
+    st.subheader("📅 High-Impact Calendar")
+    cal_data = {
+        "Day": ["Mon", "Tue", "Wed", "Fri"],
+        "Event": ["US ISM Manufacturing", "BoJ Ueda Speech", "Canada GDP", "US Non-Farm Payrolls (NFP)"],
+        "Forecast": ["50.2", "Hawkish Hint?", "1.2%", "130K"],
+        "Impact": ["Medium", "High", "High", "CRITICAL"]
+    }
+    st.table(pd.DataFrame(cal_data))
+
+with col_b:
+    st.subheader("🔥 Top 3 'Watch List' Trades")
+    st.success("**1. Long AUD/NZD:** The RBA/RBNZ divergence is at a multi-year peak. Target: 1.1200.")
+    st.warning("**2. USD/JPY Sell Limit:** Layer sells near 156.80. MoF intervention risk is 9/10.")
+    st.error("**3. USD/CAD Long:** As long as Section 122 tariffs are in the headlines, CAD will bleed.")
+
+st.info("💡 **Pro Tip:** Friday's NFP is the 'Boss'. If jobs come in over 150K, expect a massive USD rally that will crush EUR/USD below 1.1750.")
