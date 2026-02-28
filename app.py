@@ -8,16 +8,17 @@ from streamlit_autorefresh import st_autorefresh
 st.set_page_config(page_title="FX Global Intelligence Hub", layout="wide")
 st_autorefresh(interval=300000, key="master_refresher")
 
-# 2. RSS NEWS ENGINE
+# 2. RSS NEWS ENGINE (Fetches 100% real, unedited news)
 def get_live_news():
     try:
+        # Pulling from a reliable geopolitical/financial source
         rss_url = "https://www.aljazeera.com/xml/rss/all.xml"
         feed = feedparser.parse(rss_url)
-        return feed.entries[:6]
+        return feed.entries[:8] # Returns the latest 8 headlines
     except:
         return []
 
-# 3. THE MASTER DATA (Consolidated Intelligence - Feb 28, 2026)
+# 3. CONSOLIDATED DATA (Currencies & Bank Sentiment)
 market_logic = {
     "AUDUSD=X": {
         "name": "AUD/USD", "score": 9, "bank": "RBA", "status": "Hawkish",
@@ -51,23 +52,28 @@ market_logic = {
     }
 }
 
-# 4. SIDEBAR: Live News & Sentiment
+# 4. SIDEBAR: Live RSS Feed & Bank Sentiment
 st.sidebar.title("🏛 Intelligence Hub")
-st.sidebar.subheader("📡 Live RSS News")
-news_feed = get_live_news()
-if news_feed:
-    for entry in news_feed:
-        with st.sidebar.expander(f"📌 {entry.title[:45]}..."):
-            st.write(entry.title)
-            st.markdown(f"[Source Article]({entry.link})")
+
+st.sidebar.subheader("📡 Live RSS News Feed")
+live_news = get_live_news()
+if live_news:
+    for entry in live_news:
+        with st.sidebar.expander(f"📌 {entry.title[:45]}...", expanded=False):
+            st.write(f"**{entry.title}**")
+            st.caption(f"Published: {entry.published if 'published' in entry else 'Live'}")
+            st.markdown(f"[Read Original Source]({entry.link})")
+else:
+    st.sidebar.error("Could not load RSS feed. Check connection.")
 
 st.sidebar.divider()
+
 st.sidebar.subheader("🏦 Bank Sentiment Tracker")
 for ticker, data in market_logic.items():
     color = "green" if data['score'] > 6 else "red" if data['score'] < 4 else "orange"
     st.sidebar.markdown(f"**{data['bank']}**: :{color}[{data['status']} ({data['score']}/10)]")
 
-# 5. MAIN DASHBOARD
+# 5. MAIN DASHBOARD: Market Grid
 st.title("📊 Global FX Intelligence Terminal")
 st.caption(f"Last Sync: {pd.Timestamp.now().strftime('%H:%M')} | Auto-refresh: 5 min")
 st.divider()
@@ -94,7 +100,7 @@ for i, (ticker, info) in enumerate(market_logic.items()):
 
 st.divider()
 
-# 6. STRATEGIC OUTLOOK: MARCH WEEK 1 (THE "GOOD PART")
+# 6. STRATEGIC OUTLOOK: MARCH WEEK 1
 st.header("🎯 Strategic Outlook: Week of March 2, 2026")
 col_a, col_b = st.columns(2)
 
