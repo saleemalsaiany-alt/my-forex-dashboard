@@ -35,29 +35,37 @@ def get_yield_details(pair_name="AUD/USD"):
         us10_ticker = yf.Ticker("^TNX")
         us10_hist = us10_ticker.history(period="5d")
         us10 = us10_hist['Close'].iloc[-1]
+        us10_prev = us10_hist['Close'].iloc[-2]
+        us_dir = "UP" if us10 > us10_prev else "DOWN"
         
         ticker_sym = symbols.get(pair_name, "^AU10Y")
         f_ticker = yf.Ticker(ticker_sym)
         f_hist = f_ticker.history(period="5d")
         
         if f_hist.empty:
-            return 0, "No Yield Data", "⚖️ STABLE"
+            return 0, "No Yield Data", "⚖️ STABLE", "NORMAL"
             
         current_f = f_hist['Close'].iloc[-1]
+        prev_f = f_hist['Close'].iloc[-2]
+        f_dir = "UP" if current_f > prev_f else "DOWN"
+        
         avg_f = f_hist['Close'].mean()
         
-        # FIRM SHIFT THRESHOLD (Optimized for Daily Close setups)
+        # FIRM SHIFT THRESHOLD (0.10)
         diff = current_f - avg_f
         if diff > 0.10: trend = "📈 FIRM INCREASE"
         elif diff < -0.10: trend = "📉 FIRM DECREASE"
         else: trend = "⚖️ STABLE"
         
+        # DIVERGENCE LOGIC
+        div_status = "⚠️ DIVERGENCE DETECTED" if f_dir != us_dir else "✅ CONVERGENT"
+        
         spread = current_f - us10
         sentiment = "🚀 BULLISH" if spread > 0.4 else "🩸 BEARISH" if spread < -0.4 else "⚖️ NEUTRAL"
         
-        return spread, sentiment, trend
+        return spread, sentiment, trend, div_status
     except:
-        return 0, "Yield Error", "⚖️ STABLE"
+        return 0, "Yield Error", "⚖️ STABLE", "NORMAL"
 
 def get_usd_standalone_trend():
     try:
@@ -67,7 +75,6 @@ def get_usd_standalone_trend():
         avg_us = us10_hist['Close'].mean()
         diff = current_us - avg_us
         
-        # FIRM SHIFT THRESHOLD (0.10% for Next-Day Retracement Strategy)
         if diff > 0.10: 
             trend = "📈 FIRM INCREASE" 
         elif diff < -0.10: 
@@ -106,46 +113,46 @@ def calculate_ict_probability(ticker, range_min, range_max):
     except:
         return 0, 0, "ERR", 0
 
-# 5. MASTER DATA INTELLIGENCE (8 Pairs)
+# 5. MASTER DATA INTELLIGENCE
 market_logic = {
     "AUDUSD=X": {
         "name": "AUD/USD", "min": 65, "max": 85, "bank": "RBA", "sentiment": "Hawkish",
-        "deep": "RBA 3.85% yield remains the strongest carry driver in the G10.",
+        "deep": "RBA yield remains strong. Watch for divergence against falling US yields.",
         "bond": "AU 10Y vs US 10Y.", "news": "Wed: AU GDP q/q.", "target": "🏹 Target: 0.7150"
     },
     "JPY=X": {
         "name": "USD/JPY", "min": 105, "max": 140, "bank": "BoJ", "sentiment": "Hawkish-Lean",
-        "deep": "BoJ eyes April rate hike. Intervention threat at 157.00.",
+        "deep": "BoJ intervention watch at 157.00. Ueda speech is key.",
         "bond": "JGB 10Y vs US 10Y.", "news": "Tue: BoJ Gov Ueda Speech.", "target": "🏹 Target: 153.20"
     },
     "GBPJPY=X": {
         "name": "GBP/JPY", "min": 140, "max": 200, "bank": "BoE/BoJ", "sentiment": "Volatile",
-        "deep": "The 'Beast'. Watch for massive expansion if Gilts & JGBs diverge.",
+        "deep": "The 'Beast'. High pips potential on yield divergence.",
         "bond": "UK Gilt 10Y vs JGB 10Y.", "news": "Thu: UK MPC Minutes.", "target": "🏹 Target: 212.50"
     },
     "EURJPY=X": {
         "name": "EUR/JPY", "min": 120, "max": 170, "bank": "ECB/BoJ", "sentiment": "Neutral-Bullish",
-        "deep": "Euro resilience meets Yen weakness. Target 185.00 handle.",
+        "deep": "Euro resilience vs Yen weakness. Watch 185.00 level.",
         "bond": "Bund 10Y vs JGB 10Y.", "news": "Tue: Eurozone CPI.", "target": "🏹 Target: 186.20"
     },
     "NZDUSD=X": {
         "name": "NZD/USD", "min": 60, "max": 90, "bank": "RBNZ", "sentiment": "Dovish",
-        "deep": "RBNZ prioritizing growth. Weakest of the commodity bloc.",
+        "deep": "RBNZ prioritizing growth. Commodity laggard.",
         "bond": "NZ 10Y vs US 10Y.", "news": "Tue: NZ Terms of Trade.", "target": "🏹 Target: 0.5880"
     },
     "GBPUSD=X": {
         "name": "GBP/USD", "min": 85, "max": 115, "bank": "BoE", "sentiment": "Hold",
-        "deep": "Support at 1.3450. UK inflation remains the focus.",
+        "deep": "Support at 1.3450. UK inflation sticky.",
         "bond": "Gilt 10Y vs US 10Y.", "news": "Fri: US NFP Payrolls.", "target": "🏹 Target: 1.3580"
     },
     "EURUSD=X": {
         "name": "EUR/USD", "min": 65, "max": 85, "bank": "ECB", "sentiment": "Neutral",
-        "deep": "ECB on hold until Dec. German stimulus provides the floor.",
+        "deep": "ECB on hold. German stimulus is the technical floor.",
         "bond": "Bund 10Y vs US 10Y.", "news": "Tue: Eurozone CPI.", "target": "🏹 Target: 1.1910"
     },
     "USDCAD=X": {
         "name": "USD/CAD", "min": 75, "max": 100, "bank": "BoC", "sentiment": "Cautious",
-        "deep": "CAD underperforming on global tariff concerns.",
+        "deep": "CAD underperforming. Watch oil and tariff news.",
         "bond": "CA 10Y vs US 10Y.", "news": "Wed: Canada GDP.", "target": "🏹 Target: 1.3930"
     }
 }
@@ -169,10 +176,10 @@ st.title("📊 ICT Multi-Pair Intelligence Terminal")
 
 y_col1, y_col2, y_col3 = st.columns(3)
 with y_col1:
-    sp_au, txt_au, _ = get_yield_details("AUD/USD")
+    sp_au, txt_au, _, _ = get_yield_details("AUD/USD")
     st.metric("AU-US 10Y Yield Spread", f"{sp_au:.3f}%", delta=txt_au)
 with y_col2:
-    sp_nz, txt_nz, _ = get_yield_details("NZD/USD")
+    sp_nz, txt_nz, _, _ = get_yield_details("NZD/USD")
     st.metric("NZ-US 10Y Yield Spread", f"{sp_nz:.3f}%", delta=txt_nz)
 with y_col3:
     us_val, us_trend = get_usd_standalone_trend()
@@ -180,7 +187,6 @@ with y_col3:
 
 st.divider()
 
-# Probability Logic
 results = []
 for t, d in market_logic.items():
     s, p, stt, r = calculate_ict_probability(t, d['min'], d['max'])
@@ -208,11 +214,12 @@ for i, (ticker, info) in enumerate(market_logic.items()):
             st.markdown(f"**ICT Conviction: :{color}[{score}% ({status})]**")
             st.progress(score / 100)
             
-            _, _, yield_trend = get_yield_details(info['name'])
+            _, _, yield_trend, divergence = get_yield_details(info['name'])
             
             with st.expander("🔍 Strategic & News Analysis"):
                 st.markdown(f"**Market Sentiment:** {info['deep']}")
                 st.markdown(f"**Yield Trend:** `{yield_trend}`") 
+                st.markdown(f"**Divergence Status:** `{divergence}`")
                 st.markdown(f"**Bond Context:** {info['bond']}")
                 st.markdown(f"**High Impact News:** {info['news']}")
                 st.info(info['target'])
