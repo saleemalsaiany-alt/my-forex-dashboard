@@ -39,20 +39,29 @@ def get_yield_details(pair_name="AUD/USD"):
     except:
         return 0, "Yield Error", "⚖️ STABLE"
 
-# 4. ICT PROBABILITY & ANTICIPATION ENGINE
+# 4. ICT PROBABILITY & DIRECTION ENGINE
 def calculate_ict_probability(ticker, range_min, range_max):
     try:
-        data = yf.Ticker(ticker).history(period="10d")
-        if len(data) < 5: return 0, 0, "DATA_ERR", 0, "N/A"
+        data = yf.Ticker(ticker).history(period="30d")
+        if len(data) < 20: return 0, 0, "DATA_ERR", 0, "N/A"
+        
         last_candle = data.iloc[-1]
+        close_p = last_candle['Close']
+        ma20 = data['Close'].rolling(window=20).mean().iloc[-1]
+        
         digits = 3 if "JPY" in ticker else 5
         multiplier = 100 if digits == 3 else 10000
         
         current_range = (last_candle['High'] - last_candle['Low']) * multiplier
-        avg_range = ((data['High'] - data['Low']).mean()) * multiplier
+        avg_range = ((data['High'] - data['Low']).tail(10).mean()) * multiplier
         
-        # Squeeze Logic: If current volatility is < 70% of 10-day average
-        anticipation = "💎 SQUEEZE" if current_range < (avg_range * 0.7) else "🏃 TRENDING"
+        # Trend Anticipation with Directional Logic
+        if current_range < (avg_range * 0.7):
+            anticipation = "💎 SQUEEZE"
+        else:
+            direction = "BULLISH" if close_p > ma20 else "BEARISH"
+            icon = "🚀" if direction == "BULLISH" else "🩸"
+            anticipation = f"{icon} TREND ({direction})"
         
         score = 0
         dow = datetime.now().weekday()
@@ -66,14 +75,14 @@ def calculate_ict_probability(ticker, range_min, range_max):
     except:
         return 0, 0, "ERR", 0, "ERR"
 
-# 5. MASTER DATA INTELLIGENCE
+# 5. MASTER DATA (Updated with your 2026 data points)
 market_logic = {
-    "AUDUSD=X": {"name": "AUD/USD", "min": 65, "max": 85, "bank": "RBA", "sentiment": "Hawkish", "deep": "RBA 3.85% yield remains the strongest carry driver.", "bond": "AU 10Y vs US 10Y.", "news": "Wed: AU GDP.", "target": "🏹 Target: 0.7150"},
-    "JPY=X": {"name": "USD/JPY", "min": 105, "max": 140, "bank": "BoJ", "sentiment": "Hawkish-Lean", "deep": "BoJ eyes rate hike; intervention risk at 157.00.", "bond": "JGB 10Y vs US 10Y.", "news": "Tue: BoJ Ueda.", "target": "🏹 Target: 153.20"},
-    "NZDUSD=X": {"name": "NZD/USD", "min": 60, "max": 90, "bank": "RBNZ", "sentiment": "Dovish", "deep": "RBNZ prioritized growth over inflation.", "bond": "NZ 10Y vs US 10Y.", "news": "Tue: NZ Trade.", "target": "🏹 Target: 0.5880"},
-    "GBPUSD=X": {"name": "GBP/USD", "min": 85, "max": 115, "bank": "BoE", "sentiment": "Hold", "deep": "Support at 1.3450; UK inflation remains sticky.", "bond": "Gilt 10Y vs US 10Y.", "news": "Fri: US NFP.", "target": "🏹 Target: 1.3580"},
-    "EURUSD=X": {"name": "EUR/USD", "min": 65, "max": 85, "bank": "ECB", "sentiment": "Neutral", "deep": "ECB on hold; German stimulus provides floor.", "bond": "Bund 10Y vs US 10Y.", "news": "Tue: Euro CPI.", "target": "🏹 Target: 1.1910"},
-    "USDCAD=X": {"name": "USD/CAD", "min": 75, "max": 100, "bank": "BoC", "sentiment": "Cautious", "deep": "CAD weak on global tariff uncertainty.", "bond": "CA 10Y vs US 10Y.", "news": "Wed: CA GDP.", "target": "🏹 Target: 1.3930"}
+    "AUDUSD=X": {"name": "AUD/USD", "min": 65, "max": 85, "bank": "RBA", "sentiment": "Hawkish", "deep": "RBA 3.85% (Feb 2026 hike). Unemployment 4.1%. China PMI 50.1 expansion.", "bond": "AU 10Y vs US 10Y.", "news": "Wed: AU GDP.", "target": "🏹 Target: 0.7150"},
+    "JPY=X": {"name": "USD/JPY", "min": 105, "max": 140, "bank": "BoJ", "sentiment": "Hawkish-Lean", "deep": "BoJ rate hike path active; 157.00 intervention zone.", "bond": "JGB 10Y vs US 10Y.", "news": "Tue: BoJ Ueda.", "target": "🏹 Target: 153.20"},
+    "NZDUSD=X": {"name": "NZD/USD", "min": 60, "max": 90, "bank": "RBNZ", "sentiment": "Dovish", "deep": "RBNZ prioritizing growth; yield spread narrowing.", "bond": "NZ 10Y vs US 10Y.", "news": "Tue: NZ Trade.", "target": "🏹 Target: 0.5880"},
+    "GBPUSD=X": {"name": "GBP/USD", "min": 85, "max": 115, "bank": "BoE", "sentiment": "Hold", "deep": "Sticky UK inflation support; monitoring 1.3450 support.", "bond": "Gilt 10Y vs US 10Y.", "news": "Fri: US NFP.", "target": "🏹 Target: 1.3580"},
+    "EURUSD=X": {"name": "EUR/USD", "min": 65, "max": 85, "bank": "ECB", "sentiment": "Neutral", "deep": "German stimulus floor; ECB hold until Dec 2025.", "bond": "Bund 10Y vs US 10Y.", "news": "Tue: Euro CPI.", "target": "🏹 Target: 1.1910"},
+    "USDCAD=X": {"name": "USD/CAD", "min": 75, "max": 100, "bank": "BoC", "sentiment": "Cautious", "deep": "CAD weak on tariff outlook; monitoring oil volatility.", "bond": "CA 10Y vs US 10Y.", "news": "Wed: CA GDP.", "target": "🏹 Target: 1.3930"}
 }
 
 # 6. SIDEBAR
@@ -99,15 +108,6 @@ with y_col2:
     st.metric("NZ-US 10Y Yield Spread", f"{sp_nz:.3f}%", delta=txt_nz)
 st.divider()
 
-# Best Daily Pair Logic
-results = []
-for t, d in market_logic.items():
-    s, p, stt, r, anti = calculate_ict_probability(t, d['min'], d['max'])
-    results.append({"name": d['name'], "score": s, "pips": p, "anti": anti})
-best_pick = max(results, key=lambda x: x['score'])
-if best_pick['score'] >= 70: st.success(f"🎯 **ICT HIGH PROBABILITY SIGNAL: {best_pick['name']}**")
-else: st.warning("⚖️ **Market Status: No High-Prob Setups Found.**")
-
 # 8. MARKET GRID
 cols = st.columns(3)
 for i, (ticker, info) in enumerate(market_logic.items()):
@@ -122,20 +122,17 @@ for i, (ticker, info) in enumerate(market_logic.items()):
             st.progress(score / 100)
             _, _, yield_trend = get_yield_details(info['name'])
             with st.expander("🔍 Strategic & News Analysis"):
-                st.markdown(f"**Market Sentiment:** {info['deep']}")
-                st.markdown(f"**Yield Trend:** `{yield_trend}`") 
-                st.markdown(f"**Bond Context:** {info['bond']}")
-                st.markdown(f"**High Impact News:** {info['news']}")
+                st.markdown(f"<small>**Sentiment:** {info['deep']}</small>", unsafe_allow_html=True)
+                st.markdown(f"<small>**Yield Trend:** `{yield_trend}`</small>", unsafe_allow_html=True)
                 st.info(info['target'])
                 st.caption(f"Body-to-Range Ratio: {ratio:.1%}")
         except: st.error(f"Stream Down: {info['name']}")
 
-# 9. STRATEGIC OUTLOOK (Added Anticipation Column)
+# 9. WEEKLY MASTER OUTLOOK (With Trend Direction)
 st.divider()
 st.header("🎯 Weekly Master Outlook")
-outlook_df = pd.DataFrame({
-    "Pair": [v['name'] for v in market_logic.values()],
-    "Status": [calculate_ict_probability(k, v['min'], v['max'])[4] for k, v in market_logic.items()],
-    "Focus": ["Yield Div.", "Rate Pivot", "Trade Balance", "NFP Impact", "CPI Floor", "Tariff Risk"]
-})
-st.table(outlook_df)
+outlook_data = []
+for k, v in market_logic.items():
+    _, _, _, _, anti = calculate_ict_probability(k, v['min'], v['max'])
+    outlook_data.append({"Pair": v['name'], "Status": anti, "Bank Bias": v['sentiment']})
+st.table(pd.DataFrame(outlook_data))
