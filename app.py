@@ -57,17 +57,16 @@ def get_yield_details(pair_name="AUD/USD"):
         elif diff < -0.10: trend = "📉 FIRM DECREASE"
         else: trend = "⚖️ STABLE"
         
-        # IMPROVED DIVERGENCE ACTION LOGIC
+        # DIVERGENCE ACTION LOGIC
         div_status = "✅ CONVERGENT"
         if f_dir != us_dir:
             if "JPY" in pair_name:
-                # For JPY crosses, context is foreign bond vs JGB (simplified here to US10Y context)
                 if f_dir == "UP" and us_dir == "DOWN": div_status = "⚠️ DIVERGENCE: WAIT FOR A BUY"
                 if f_dir == "DOWN" and us_dir == "UP": div_status = "⚠️ DIVERGENCE: WAIT FOR A SELL"
             elif pair_name.endswith("/USD"):
                 if f_dir == "UP" and us_dir == "DOWN": div_status = "⚠️ DIVERGENCE: WAIT FOR A BUY"
                 if f_dir == "DOWN" and us_dir == "UP": div_status = "⚠️ DIVERGENCE: WAIT FOR A SELL"
-            elif pair_name.startswith("USD/"): # For USDCAD
+            elif pair_name.startswith("USD/"): 
                 if f_dir == "UP" and us_dir == "DOWN": div_status = "⚠️ DIVERGENCE: WAIT FOR A SELL"
                 if f_dir == "DOWN" and us_dir == "UP": div_status = "⚠️ DIVERGENCE: WAIT FOR A BUY"
         
@@ -124,46 +123,46 @@ def calculate_ict_probability(ticker, range_min, range_max):
     except:
         return 0, 0, "ERR", 0
 
-# 5. MASTER DATA INTELLIGENCE
+# 5. MASTER DATA INTELLIGENCE (Strictly Reverted Content)
 market_logic = {
     "AUDUSD=X": {
         "name": "AUD/USD", "min": 65, "max": 85, "bank": "RBA", "sentiment": "Hawkish",
-        "deep": "RBA yield remains strong. Watch for divergence against falling US yields.",
+        "deep": "RBA 3.85% yield remains the strongest carry driver in the G10.",
         "bond": "AU 10Y vs US 10Y.", "news": "Wed: AU GDP q/q.", "target": "🏹 Target: 0.7150"
     },
     "JPY=X": {
         "name": "USD/JPY", "min": 105, "max": 140, "bank": "BoJ", "sentiment": "Hawkish-Lean",
-        "deep": "BoJ intervention watch at 157.00. Ueda speech is key.",
+        "deep": "BoJ eyes April rate hike. Watch for intervention at 157.00.",
         "bond": "JGB 10Y vs US 10Y.", "news": "Tue: BoJ Gov Ueda Speech.", "target": "🏹 Target: 153.20"
     },
     "GBPJPY=X": {
         "name": "GBP/JPY", "min": 140, "max": 200, "bank": "BoE/BoJ", "sentiment": "Volatile",
-        "deep": "The 'Beast'. High pips potential on yield divergence.",
-        "bond": "UK Gilt 10Y vs JGB 10Y.", "news": "Thu: UK MPC Minutes.", "target": "🏹 Target: 212.50"
+        "deep": "The 'Beast'. Driven by UK Gilt yields vs BoJ hawkishness.",
+        "bond": "UK Gilt 10Y vs JGB 10Y context.", "news": "Thu: UK MPC Meeting Minutes.", "target": "🏹 Target: 212.50"
     },
     "EURJPY=X": {
         "name": "EUR/JPY", "min": 120, "max": 170, "bank": "ECB/BoJ", "sentiment": "Neutral-Bullish",
-        "deep": "Euro resilience vs Yen weakness. Watch 185.00 level.",
-        "bond": "Bund 10Y vs JGB 10Y.", "news": "Tue: Eurozone CPI.", "target": "🏹 Target: 186.20"
+        "deep": "Euro resilience meets Yen weakness. Watch 185.00 level.",
+        "bond": "Bund 10Y vs JGB 10Y context.", "news": "Tue: Eurozone CPI.", "target": "🏹 Target: 186.20"
     },
     "NZDUSD=X": {
         "name": "NZD/USD", "min": 60, "max": 90, "bank": "RBNZ", "sentiment": "Dovish",
-        "deep": "RBNZ prioritizing growth. Commodity laggard.",
+        "deep": "RBNZ prioritizing growth. Weakest of the commodity bloc.",
         "bond": "NZ 10Y vs US 10Y.", "news": "Tue: NZ Terms of Trade.", "target": "🏹 Target: 0.5880"
     },
     "GBPUSD=X": {
         "name": "GBP/USD", "min": 85, "max": 115, "bank": "BoE", "sentiment": "Hold",
-        "deep": "Support at 1.3450. UK inflation sticky.",
+        "deep": "Support at 1.3450. UK inflation remains 'sticky'.",
         "bond": "Gilt 10Y vs US 10Y.", "news": "Fri: US NFP Payrolls.", "target": "🏹 Target: 1.3580"
     },
     "EURUSD=X": {
         "name": "EUR/USD", "min": 65, "max": 85, "bank": "ECB", "sentiment": "Neutral",
-        "deep": "ECB on hold. German stimulus is the technical floor.",
+        "deep": "ECB on hold until Dec. German stimulus is the floor.",
         "bond": "Bund 10Y vs US 10Y.", "news": "Tue: Eurozone CPI.", "target": "🏹 Target: 1.1910"
     },
     "USDCAD=X": {
         "name": "USD/CAD", "min": 75, "max": 100, "bank": "BoC", "sentiment": "Cautious",
-        "deep": "CAD underperforming. Watch oil and tariff news.",
+        "deep": "CAD underperforming on global tariff concerns.",
         "bond": "CA 10Y vs US 10Y.", "news": "Wed: Canada GDP.", "target": "🏹 Target: 1.3930"
     }
 }
@@ -231,7 +230,6 @@ for i, (ticker, info) in enumerate(market_logic.items()):
                 st.markdown(f"**Market Sentiment:** {info['deep']}")
                 st.markdown(f"**Yield Trend:** `{yield_trend}`") 
                 
-                # Highlight Divergence in Red/Green context
                 if "WAIT FOR A BUY" in divergence:
                     st.success(f"🚀 **{divergence}**")
                 elif "WAIT FOR A SELL" in divergence:
