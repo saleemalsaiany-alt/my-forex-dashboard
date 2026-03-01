@@ -67,9 +67,12 @@ def get_usd_standalone_trend():
         avg_us = us10_hist['Close'].mean()
         diff = current_us - avg_us
         
-        if diff > 0.15: trend = "📈 DRASTICALLY INCREASING"
-        elif diff < -0.15: trend = "📉 DRASTICALLY DECREASING"
-        else: trend = "⚖️ STABLE"
+        if diff > 0.10: 
+    trend = "📈 FIRM INCREASE" 
+elif diff < -0.10: 
+    trend = "📉 FIRM DECREASE"
+else: 
+    trend = "⚖️ STABLE"
         return current_us, trend
     except:
         return 0, "⚖️ STABLE"
