@@ -18,25 +18,45 @@ def get_live_news():
     except:
         return []
 
-# 3. YIELD CONFIRMATION ENGINE (Enhanced for multiple pairs)
-def get_yield_confirmation(pair_name="AUD/USD"):
+# 3. YIELD CONFIRMATION & TREND ENGINE
+def get_yield_details(pair_name="AUD/USD"):
+    symbols = {
+        "AUD/USD": "^AU10Y",
+        "NZD/USD": "^NZ10Y.NM",
+        "USD/JPY": "JP10Y.BD", # Adjusted for typical yfinance/data availability
+        "GBP/USD": "^GILT",
+        "EUR/USD": "BUND10Y.BD",
+        "USD/CAD": "^CAN10Y"
+    }
+    
     try:
-        us10 = yf.Ticker("^TNX").history(period="5d")['Close'].iloc[-1]
+        us10_ticker = yf.Ticker("^TNX")
+        us10_hist = us10_ticker.history(period="5d")
+        us10 = us10_hist['Close'].iloc[-1]
         
-        if "AUD" in pair_name:
-            foreign_10y = yf.Ticker("^AU10Y").history(period="5d")['Close'].iloc[-1]
-            label = "AU-US 10Y"
-        elif "NZD" in pair_name:
-            foreign_10y = yf.Ticker("^NZ10Y.NM").history(period="5d")['Close'].iloc[-1]
-            label = "NZ-US 10Y"
-        else:
-            return 0, "No Yield Data", "gray"
+        # Get foreign yield based on pair
+        ticker_sym = symbols.get(pair_name, "^AU10Y")
+        f_ticker = yf.Ticker(ticker_sym)
+        f_hist = f_ticker.history(period="5d")
+        
+        if f_hist.empty:
+            return 0, "No Yield Data", "gray", "Stable"
             
-        spread = foreign_10y - us10
+        current_f = f_hist['Close'].iloc[-1]
+        avg_f = f_hist['Close'].mean()
+        
+        # Calculate Trend
+        diff = current_f - avg_f
+        if diff > 0.15: trend = "📈 DRASTICALLY INCREASING"
+        elif diff < -0.15: trend = "📉 DRASTICALLY DECREASING"
+        else: trend = "⚖️ STABLE"
+        
+        spread = current_f - us10
         sentiment = "🚀 BULLISH" if spread > 0.4 else "🩸 BEARISH" if spread < -0.4 else "⚖️ NEUTRAL"
-        return spread, f"{label}: {sentiment}", "green" if "BULLISH" in sentiment else "red" if "BEARISH" in sentiment else "gray"
+        
+        return spread, sentiment, trend
     except:
-        return 0, "Yield Error", "orange"
+        return 0, "Yield Error", "Stable"
 
 # 4. ICT PROBABILITY ENGINE
 def calculate_ict_probability(ticker, range_min, range_max):
@@ -66,12 +86,12 @@ def calculate_ict_probability(ticker, range_min, range_max):
     except:
         return 0, 0, "ERR", 0
 
-# 5. MASTER DATA INTELLIGENCE (All Pairs Restored)
+# 5. MASTER DATA INTELLIGENCE
 market_logic = {
     "AUDUSD=X": {
         "name": "AUD/USD", "min": 65, "max": 85, "bank": "RBA", "sentiment": "Hawkish",
         "deep": "RBA 3.85% yield remains the strongest carry driver in the G10.",
-        "bond": "AU 10Y (4.64%) vs US 10Y (4.02%). Spread: +62bps.",
+        "bond": "AU 10Y (4.64%) vs US 10Y (4.02%).",
         "news": "Wed: AU GDP q/q.",
         "target": "🏹 Target: 0.7150"
     },
@@ -129,18 +149,16 @@ for t, d in market_logic.items():
 # 7. MAIN UI
 st.title("📊 ICT Multi-Pair Intelligence Terminal")
 
-# YIELD DASHBOARD HEADER (Comparing the two main Commodity Currencies)
 y_col1, y_col2 = st.columns(2)
 with y_col1:
-    sp_au, txt_au, _ = get_yield_confirmation("AUD/USD")
+    sp_au, txt_au, tr_au = get_yield_details("AUD/USD")
     st.metric("AU-US 10Y Yield Spread", f"{sp_au:.3f}%", delta=txt_au)
 with y_col2:
-    sp_nz, txt_nz, _ = get_yield_confirmation("NZD/USD")
+    sp_nz, txt_nz, tr_nz = get_yield_details("NZD/USD")
     st.metric("NZ-US 10Y Yield Spread", f"{sp_nz:.3f}%", delta=txt_nz)
 
 st.divider()
 
-# Best Daily Pair Logic
 results = []
 for t, d in market_logic.items():
     s, p, stt, r = calculate_ict_probability(t, d['min'], d['max'])
@@ -165,20 +183,13 @@ for i, (ticker, info) in enumerate(market_logic.items()):
             st.markdown(f"**ICT Conviction: :{color}[{score}% ({status})]**")
             st.progress(score / 100)
             
+            # GET TREND FOR THIS SPECIFIC PAIR
+            _, _, yield_trend = get_yield_details(info['name'])
+            
             with st.expander("🔍 Strategic & News Analysis"):
                 st.markdown(f"**Market Sentiment:** {info['deep']}")
+                st.markdown(f"**Yield Trend:** `{yield_trend}`") # NEW FEATURE
                 st.markdown(f"**Bond Context:** {info['bond']}")
                 st.markdown(f"**High Impact News:** {info['news']}")
                 st.info(info['target'])
                 st.caption(f"Body-to-Range Ratio: {ratio:.1%}")
-        except:
-            st.error(f"Stream Down: {info['name']}")
-
-# 9. STRATEGIC OUTLOOK
-st.divider()
-st.header("🎯 Weekly Master Outlook")
-st.table(pd.DataFrame({
-    "Date": ["Mar 2", "Mar 3", "Mar 4", "Mar 6"],
-    "Event": ["US ISM Mfg", "BoJ Ueda Speech", "AU GDP", "US NFP Jobs"],
-    "Focus": ["Growth", "Rate Pivot", "Yield Divergence", "USD Kingmaker"]
-}))
