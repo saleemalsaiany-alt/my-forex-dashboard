@@ -1,90 +1,68 @@
-import streamlit as st
 import smtplib
-import requests
-import pandas as pd
-import yfinance as yf
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from datetime import datetime
+import pandas as pd
+# Import your logic from the main app
+from app import calculate_ict_probability, market_logic 
 
-# --- 1. ACCESS SECRETS ---
-try:
-    GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
-    GMAIL_PASS = st.secrets["GMAIL_PASS"]
-    SENDER_EMAIL = st.secrets["SENDER_EMAIL"]
-except KeyError:
-    st.error("Secrets not found! Please set GITHUB_TOKEN and GMAIL_PASS in .streamlit/secrets.toml")
-    st.stop()
-
-# --- 2. GITHUB EMAIL FETCHING ---
-def get_github_email():
-    headers = {'Authorization': f'token {GITHUB_TOKEN}'}
-    try:
-        response = requests.get('https://api.github.com/user/emails', headers=headers)
-        emails = response.json()
-        return next(email['email'] for email in emails if email['primary'] and email['verified'])
-    except:
-        return SENDER_EMAIL # Fallback
-
-# --- 3. ICT CORE LOGIC ---
-# (Keeping your existing calculate_ict_probability and market_logic here)
-market_logic = {
-    "AUDUSD=X": {"name": "AUD/USD", "min": 65, "max": 85, "target": "0.7150", "news": "AU GDP"},
-    "JPY=X": {"name": "USD/JPY", "min": 105, "max": 140, "target": "153.20", "news": "BoJ Ueda"},
-    # ... (add your other pairs here)
-}
-
-def calculate_ict_probability(ticker, r_min, r_max):
-    # Simplified for the example - uses your existing logic
-    data = yf.Ticker(ticker).history(period="2d")
-    score = 75 if ticker == "AUDUSD=X" else 40 # Mock score for demo
-    status = "HIGH" if score >= 70 else "LOW"
-    return score, status
-
-# --- 4. REPORT GENERATOR ---
-def send_daily_report():
-    receiver = get_github_email()
-    report_rows = []
-    ea_on = False
+def generate_daily_report():
+    report_data = []
     
+    # 1. Analyze All Pairs
     for ticker, info in market_logic.items():
-        score, status = calculate_ict_probability(ticker, info['min'], info['max'])
-        action = "✅ ON" if score >= 70 else "❌ OFF"
-        if score >= 70: ea_on = True
+        score, pips, status, ratio = calculate_ict_probability(ticker, info['min'], info['max'])
         
-        report_rows.append({
+        # We only care about high/mid setups for the report
+        report_data.append({
             "Pair": info['name'],
-            "Score": f"{score}%",
-            "EA Action": action,
+            "ICT Score": f"{score}%",
+            "Status": status,
+            "News Focus": info['news'],
             "Target": info['target']
         })
 
-    # Build Email
-    df = pd.DataFrame(report_rows)
-    banner_color = "#28a745" if ea_on else "#dc3545"
-    banner_text = "ACTION: TURN EA ON" if ea_on else "ACTION: STAY CASH"
-    
-    html = f"""
-    <div style="background:{banner_color}; color:white; padding:20px; text-align:center;">
-        <h1>{banner_text}</h1>
-    </div>
-    {df.to_html(index=False)}
+    # 2. Build the HTML Email Body
+    df = pd.DataFrame(report_data)
+    html_table = df.to_html(index=False, classes='table table-striped')
+
+    body = f"""
+    <html>
+      <head>
+        <style>
+            .high {{ color: green; font-weight: bold; }}
+            .header {{ background-color: #1e1e1e; color: white; padding: 20px; }}
+        </style>
+      </head>
+      <body>
+        <div class="header">
+            <h2>🎯 ICT Sniper: Daily Close Report</h2>
+            <p>Date: {pd.Timestamp.now().strftime('%Y-%m-%d')}</p>
+        </div>
+        <h3>Market Analysis Summary</h3>
+        {html_table}
+        <br>
+        <p><b>Recommendation:</b> If ICT Score > 70%, enable EA for the London session.</p>
+      </body>
+    </html>
     """
+    return body
+
+def send_email(content):
+    # Setup your Gmail/Outlook App Password
+    SENDER = "saleem.aslaiany@gmail.com"
+    PASSWORD = "Saleem!321" 
+    RECEIVER = "saleem.alsaiany@gmail.com"
 
     msg = MIMEMultipart()
-    msg['Subject'] = f"🚀 ICT Sniper Report - {datetime.now().strftime('%b %d')}"
-    msg.attach(MIMEText(html, 'html'))
+    msg['Subject'] = f"🚀 ICT Trading Report: {pd.Timestamp.now().strftime('%b %d')}"
+    msg.attach(MIMEText(content, 'html'))
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(SENDER_EMAIL, GMAIL_PASS)
-        server.sendmail(SENDER_EMAIL, receiver, msg.as_string())
-    
-    st.success(f"Report sent to {receiver}!")
+        server.login(SENDER, PASSWORD)
+        server.sendmail(SENDER, RECEIVER, msg.as_string())
+    print("Report Sent Successfully!")
 
-# --- 5. STREAMLIT UI ---
-st.title("🏹 ICT Sniper Terminal")
-
-if st.button("📧 Generate & Send Daily Report Now"):
-    send_daily_report()
-
-# (Rest of your Dashboard Grid Code goes here...)
+# Execute manually or via task scheduler at 17:01 EST
+if __name__ == "__main__":
+    content = generate_daily_report()
+    send_email(content)
