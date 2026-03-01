@@ -23,7 +23,7 @@ def get_yield_details(pair_name="AUD/USD"):
     symbols = {
         "AUD/USD": "^AU10Y",
         "NZD/USD": "^NZ10Y.NM",
-        "USD/JPY": "JP10Y.BD", # Adjusted for typical yfinance/data availability
+        "USD/JPY": "JP10Y.BD", 
         "GBP/USD": "^GILT",
         "EUR/USD": "BUND10Y.BD",
         "USD/CAD": "^CAN10Y"
@@ -34,13 +34,12 @@ def get_yield_details(pair_name="AUD/USD"):
         us10_hist = us10_ticker.history(period="5d")
         us10 = us10_hist['Close'].iloc[-1]
         
-        # Get foreign yield based on pair
         ticker_sym = symbols.get(pair_name, "^AU10Y")
         f_ticker = yf.Ticker(ticker_sym)
         f_hist = f_ticker.history(period="5d")
         
         if f_hist.empty:
-            return 0, "No Yield Data", "gray", "Stable"
+            return 0, "No Yield Data", "⚖️ STABLE"
             
         current_f = f_hist['Close'].iloc[-1]
         avg_f = f_hist['Close'].mean()
@@ -56,7 +55,7 @@ def get_yield_details(pair_name="AUD/USD"):
         
         return spread, sentiment, trend
     except:
-        return 0, "Yield Error", "Stable"
+        return 0, "Yield Error", "⚖️ STABLE"
 
 # 4. ICT PROBABILITY ENGINE
 def calculate_ict_probability(ticker, range_min, range_max):
@@ -151,14 +150,15 @@ st.title("📊 ICT Multi-Pair Intelligence Terminal")
 
 y_col1, y_col2 = st.columns(2)
 with y_col1:
-    sp_au, txt_au, tr_au = get_yield_details("AUD/USD")
+    sp_au, txt_au, _ = get_yield_details("AUD/USD")
     st.metric("AU-US 10Y Yield Spread", f"{sp_au:.3f}%", delta=txt_au)
 with y_col2:
-    sp_nz, txt_nz, tr_nz = get_yield_details("NZD/USD")
+    sp_nz, txt_nz, _ = get_yield_details("NZD/USD")
     st.metric("NZ-US 10Y Yield Spread", f"{sp_nz:.3f}%", delta=txt_nz)
 
 st.divider()
 
+# Best Daily Pair Logic
 results = []
 for t, d in market_logic.items():
     s, p, stt, r = calculate_ict_probability(t, d['min'], d['max'])
@@ -176,9 +176,12 @@ for i, (ticker, info) in enumerate(market_logic.items()):
     with cols[i % 3]:
         score, pips, status, ratio = calculate_ict_probability(ticker, info['min'], info['max'])
         try:
-            price = yf.Ticker(ticker).history(period="1d")['Close'].iloc[-1]
+            price_data = yf.Ticker(ticker).history(period="1d")
+            price = price_data['Close'].iloc[-1]
+            
             st.markdown(f"### {info['name']}")
             st.metric("Price", f"{price:.4f}", f"{pips:.1f} Pips")
+            
             color = "green" if score >= 70 else "orange" if score >= 40 else "red"
             st.markdown(f"**ICT Conviction: :{color}[{score}% ({status})]**")
             st.progress(score / 100)
@@ -188,8 +191,19 @@ for i, (ticker, info) in enumerate(market_logic.items()):
             
             with st.expander("🔍 Strategic & News Analysis"):
                 st.markdown(f"**Market Sentiment:** {info['deep']}")
-                st.markdown(f"**Yield Trend:** `{yield_trend}`") # NEW FEATURE
+                st.markdown(f"**Yield Trend:** `{yield_trend}`") 
                 st.markdown(f"**Bond Context:** {info['bond']}")
                 st.markdown(f"**High Impact News:** {info['news']}")
                 st.info(info['target'])
                 st.caption(f"Body-to-Range Ratio: {ratio:.1%}")
+        except Exception as e:
+            st.error(f"Stream Down: {info['name']}")
+
+# 9. STRATEGIC OUTLOOK
+st.divider()
+st.header("🎯 Weekly Master Outlook")
+st.table(pd.DataFrame({
+    "Date": ["Mar 2", "Mar 3", "Mar 4", "Mar 6"],
+    "Event": ["US ISM Mfg", "BoJ Ueda Speech", "AU GDP", "US NFP Jobs"],
+    "Focus": ["Growth", "Rate Pivot", "Yield Divergence", "USD Kingmaker"]
+}))
