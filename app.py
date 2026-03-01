@@ -57,8 +57,19 @@ def get_yield_details(pair_name="AUD/USD"):
         elif diff < -0.10: trend = "📉 FIRM DECREASE"
         else: trend = "⚖️ STABLE"
         
-        # DIVERGENCE LOGIC
-        div_status = "⚠️ DIVERGENCE DETECTED" if f_dir != us_dir else "✅ CONVERGENT"
+        # IMPROVED DIVERGENCE ACTION LOGIC
+        div_status = "✅ CONVERGENT"
+        if f_dir != us_dir:
+            if "JPY" in pair_name:
+                # For JPY crosses, context is foreign bond vs JGB (simplified here to US10Y context)
+                if f_dir == "UP" and us_dir == "DOWN": div_status = "⚠️ DIVERGENCE: WAIT FOR A BUY"
+                if f_dir == "DOWN" and us_dir == "UP": div_status = "⚠️ DIVERGENCE: WAIT FOR A SELL"
+            elif pair_name.endswith("/USD"):
+                if f_dir == "UP" and us_dir == "DOWN": div_status = "⚠️ DIVERGENCE: WAIT FOR A BUY"
+                if f_dir == "DOWN" and us_dir == "UP": div_status = "⚠️ DIVERGENCE: WAIT FOR A SELL"
+            elif pair_name.startswith("USD/"): # For USDCAD
+                if f_dir == "UP" and us_dir == "DOWN": div_status = "⚠️ DIVERGENCE: WAIT FOR A SELL"
+                if f_dir == "DOWN" and us_dir == "UP": div_status = "⚠️ DIVERGENCE: WAIT FOR A BUY"
         
         spread = current_f - us10
         sentiment = "🚀 BULLISH" if spread > 0.4 else "🩸 BEARISH" if spread < -0.4 else "⚖️ NEUTRAL"
@@ -219,7 +230,15 @@ for i, (ticker, info) in enumerate(market_logic.items()):
             with st.expander("🔍 Strategic & News Analysis"):
                 st.markdown(f"**Market Sentiment:** {info['deep']}")
                 st.markdown(f"**Yield Trend:** `{yield_trend}`") 
-                st.markdown(f"**Divergence Status:** `{divergence}`")
+                
+                # Highlight Divergence in Red/Green context
+                if "WAIT FOR A BUY" in divergence:
+                    st.success(f"🚀 **{divergence}**")
+                elif "WAIT FOR A SELL" in divergence:
+                    st.error(f"🩸 **{divergence}**")
+                else:
+                    st.markdown(f"**Divergence Status:** `{divergence}`")
+                    
                 st.markdown(f"**Bond Context:** {info['bond']}")
                 st.markdown(f"**High Impact News:** {info['news']}")
                 st.info(info['target'])
