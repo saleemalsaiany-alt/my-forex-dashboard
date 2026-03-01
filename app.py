@@ -18,25 +18,25 @@ def get_live_news():
     except:
         return []
 
-# 3. YIELD CONFIRMATION ENGINE
-def get_yield_confirmation():
+# 3. YIELD CONFIRMATION ENGINE (Enhanced for multiple pairs)
+def get_yield_confirmation(pair_name="AUD/USD"):
     try:
-        # Fetch Bond Data (AU10Y and US10Y)
-        au10 = yf.Ticker("^AU10Y").history(period="5d")['Close'].iloc[-1]
         us10 = yf.Ticker("^TNX").history(period="5d")['Close'].iloc[-1]
         
-        spread = au10 - us10
-        
-        if spread > 0.5:
-            sentiment, color = "🚀 BULLISH CONFIRMATION", "green"
-        elif spread < -0.5:
-            sentiment, color = "🩸 BEARISH CONFIRMATION", "red"
+        if "AUD" in pair_name:
+            foreign_10y = yf.Ticker("^AU10Y").history(period="5d")['Close'].iloc[-1]
+            label = "AU-US 10Y"
+        elif "NZD" in pair_name:
+            foreign_10y = yf.Ticker("^NZ10Y.NM").history(period="5d")['Close'].iloc[-1]
+            label = "NZ-US 10Y"
         else:
-            sentiment, color = "⚖️ NEUTRAL", "gray"
+            return 0, "No Yield Data", "gray"
             
-        return spread, sentiment, color
+        spread = foreign_10y - us10
+        sentiment = "🚀 BULLISH" if spread > 0.4 else "🩸 BEARISH" if spread < -0.4 else "⚖️ NEUTRAL"
+        return spread, f"{label}: {sentiment}", "green" if "BULLISH" in sentiment else "red" if "BEARISH" in sentiment else "gray"
     except:
-        return 0, "⚠️ YIELD DATA ERROR", "orange"
+        return 0, "Yield Error", "orange"
 
 # 4. ICT PROBABILITY ENGINE
 def calculate_ict_probability(ticker, range_min, range_max):
@@ -55,7 +55,7 @@ def calculate_ict_probability(ticker, range_min, range_max):
         
         score = 0
         dow = datetime.now().weekday()
-        if 1 <= dow <= 3: score += 35 # Tues-Thurs bias
+        if 1 <= dow <= 3: score += 35 
         if range_min <= range_pips <= range_max: score += 35
         
         ratio = body_pips / range_pips if range_pips > 0 else 0
@@ -66,35 +66,49 @@ def calculate_ict_probability(ticker, range_min, range_max):
     except:
         return 0, 0, "ERR", 0
 
-# 5. MASTER DATA INTELLIGENCE
+# 5. MASTER DATA INTELLIGENCE (All Pairs Restored)
 market_logic = {
     "AUDUSD=X": {
         "name": "AUD/USD", "min": 65, "max": 85, "bank": "RBA", "sentiment": "Hawkish",
         "deep": "RBA 3.85% yield remains the strongest carry driver in the G10.",
-        "bond": "AU 10Y (4.64%) vs US 10Y (4.02%). Spread: +62bps (Bullish AUD).",
-        "news": "Wed: AU GDP q/q. Expecting 0.3% growth.",
-        "target": "🏹 Intraweek Target: 0.7150"
+        "bond": "AU 10Y (4.64%) vs US 10Y (4.02%). Spread: +62bps.",
+        "news": "Wed: AU GDP q/q.",
+        "target": "🏹 Target: 0.7150"
     },
     "JPY=X": {
         "name": "USD/JPY", "min": 105, "max": 140, "bank": "BoJ", "sentiment": "Hawkish-Lean",
-        "deep": "Intervention threat at 157.00. BoJ eyes 0.75% rate hike in April.",
-        "bond": "JGB 10Y (2.13%) vs US 10Y (4.02%). Yields rising fast.",
-        "news": "Tue: BoJ Gov Ueda Speech. Key for rate timing.",
-        "target": "🏹 Intraweek Target: 153.20"
+        "deep": "Intervention threat at 157.00. BoJ eyes April rate hike.",
+        "bond": "JGB 10Y (2.13%) vs US 10Y (4.02%).",
+        "news": "Tue: BoJ Gov Ueda Speech.",
+        "target": "🏹 Target: 153.20"
     },
-    "USDCAD=X": {
-        "name": "USD/CAD", "min": 75, "max": 100, "bank": "BoC", "sentiment": "Cautious",
-        "deep": "CAD under-performing on Sec 122 global tariff (15%) concerns.",
-        "bond": "CA 10Y (3.16%) vs US 10Y (4.02%). Spread: -86bps.",
-        "news": "Wed: Canada GDP. Fri: US NFP Jobs Data.",
-        "target": "🏹 Intraweek Target: 1.3930"
+    "NZDUSD=X": {
+        "name": "NZD/USD", "min": 60, "max": 90, "bank": "RBNZ", "sentiment": "Dovish",
+        "deep": "RBNZ prioritizes growth over inflation containment.",
+        "bond": "NZ 10Y (4.35%) vs US 10Y (4.02%).",
+        "news": "Tue: NZ Terms of Trade.",
+        "target": "🏹 Target: 0.5880"
+    },
+    "GBPUSD=X": {
+        "name": "GBP/USD", "min": 85, "max": 115, "bank": "BoE", "sentiment": "Hold",
+        "deep": "Support at 1.3450 as UK inflation expectations edge higher.",
+        "bond": "Gilt 10Y (4.30%) vs US 10Y (4.02%).",
+        "news": "Fri: US NFP Payrolls.",
+        "target": "🏹 Target: 1.3580"
     },
     "EURUSD=X": {
         "name": "EUR/USD", "min": 65, "max": 85, "bank": "ECB", "sentiment": "Neutral",
-        "deep": "German €1T stimulus provides floor. ECB on hold until Dec.",
-        "bond": "Bund 10Y (2.64%) vs US 10Y (4.02%). Spread stable.",
-        "news": "Tue: Eurozone CPI. Fri: US NFP.",
-        "target": "🏹 Intraweek Target: 1.1910"
+        "deep": "German stimulus floor. ECB on hold until Dec.",
+        "bond": "Bund 10Y (2.64%) vs US 10Y (4.02%).",
+        "news": "Tue: Eurozone CPI.",
+        "target": "🏹 Target: 1.1910"
+    },
+    "USDCAD=X": {
+        "name": "USD/CAD", "min": 75, "max": 100, "bank": "BoC", "sentiment": "Cautious",
+        "deep": "CAD under-performing on global tariff concerns.",
+        "bond": "CA 10Y (3.16%) vs US 10Y (4.02%).",
+        "news": "Wed: Canada GDP.",
+        "target": "🏹 Target: 1.3930"
     }
 }
 
@@ -115,12 +129,14 @@ for t, d in market_logic.items():
 # 7. MAIN UI
 st.title("📊 ICT Multi-Pair Intelligence Terminal")
 
-# YIELD CONFIRMATION HEADER
-spread_val, yield_text, yield_color = get_yield_confirmation()
-st.metric(label="AU-US 10Y Yield Spread (Main Macro Driver)", 
-          value=f"{spread_val:.3f}%", 
-          delta=yield_text, 
-          delta_color="normal")
+# YIELD DASHBOARD HEADER (Comparing the two main Commodity Currencies)
+y_col1, y_col2 = st.columns(2)
+with y_col1:
+    sp_au, txt_au, _ = get_yield_confirmation("AUD/USD")
+    st.metric("AU-US 10Y Yield Spread", f"{sp_au:.3f}%", delta=txt_au)
+with y_col2:
+    sp_nz, txt_nz, _ = get_yield_confirmation("NZD/USD")
+    st.metric("NZ-US 10Y Yield Spread", f"{sp_nz:.3f}%", delta=txt_nz)
 
 st.divider()
 
@@ -137,9 +153,9 @@ else:
     st.warning("⚖️ **Market Status: No High-Prob Setups Found.**")
 
 # 8. MARKET GRID
-cols = st.columns(2)
+cols = st.columns(3)
 for i, (ticker, info) in enumerate(market_logic.items()):
-    with cols[i % 2]:
+    with cols[i % 3]:
         score, pips, status, ratio = calculate_ict_probability(ticker, info['min'], info['max'])
         try:
             price = yf.Ticker(ticker).history(period="1d")['Close'].iloc[-1]
@@ -160,16 +176,9 @@ for i, (ticker, info) in enumerate(market_logic.items()):
 
 # 9. STRATEGIC OUTLOOK
 st.divider()
-st.header("🎯 Master Strategic Outlook")
-col_a, col_b = st.columns(2)
-with col_a:
-    st.subheader("📅 Weekly Focus Events")
-    st.table(pd.DataFrame({
-        "Date": ["Mar 2", "Mar 3", "Mar 4", "Mar 6"],
-        "Event": ["US ISM Mfg", "BoJ Ueda Speech", "AU GDP", "US NFP Jobs"],
-        "Focus": ["Growth", "Rate Pivot", "Yield Divergence", "USD Kingmaker"]
-    }))
-with col_b:
-    st.subheader("🔥 Top High Conviction Plays")
-    st.success("1. **Long AUD/NZD:** RBA/RBNZ Divergence.")
-    st.warning("2. **USD/JPY Sell:** Watching 157.00 Wall.")
+st.header("🎯 Weekly Master Outlook")
+st.table(pd.DataFrame({
+    "Date": ["Mar 2", "Mar 3", "Mar 4", "Mar 6"],
+    "Event": ["US ISM Mfg", "BoJ Ueda Speech", "AU GDP", "US NFP Jobs"],
+    "Focus": ["Growth", "Rate Pivot", "Yield Divergence", "USD Kingmaker"]
+}))
