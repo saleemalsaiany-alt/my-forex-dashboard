@@ -26,7 +26,9 @@ def get_yield_details(pair_name="AUD/USD"):
         "USD/JPY": "JP10Y.BD", 
         "GBP/USD": "^GILT",
         "EUR/USD": "BUND10Y.BD",
-        "USD/CAD": "^CAN10Y"
+        "USD/CAD": "^CAN10Y",
+        "GBP/JPY": "^GILT", # Compares UK Gilts vs US10Y (Spread) & tracks Gilt Trend
+        "EUR/JPY": "BUND10Y.BD" # Compares Bunds vs US10Y (Spread) & tracks Bund Trend
     }
     
     try:
@@ -57,7 +59,6 @@ def get_yield_details(pair_name="AUD/USD"):
     except:
         return 0, "Yield Error", "⚖️ STABLE"
 
-# NEW FEATURE: STANDALONE USD TREND ENGINE
 def get_usd_standalone_trend():
     try:
         us10_ticker = yf.Ticker("^TNX")
@@ -101,47 +102,61 @@ def calculate_ict_probability(ticker, range_min, range_max):
     except:
         return 0, 0, "ERR", 0
 
-# 5. MASTER DATA INTELLIGENCE
+# 5. MASTER DATA INTELLIGENCE (Expanded to 8 Pairs)
 market_logic = {
     "AUDUSD=X": {
         "name": "AUD/USD", "min": 65, "max": 85, "bank": "RBA", "sentiment": "Hawkish",
         "deep": "RBA 3.85% yield remains the strongest carry driver in the G10.",
-        "bond": "AU 10Y (4.64%) vs US 10Y (4.02%).",
+        "bond": "AU 10Y vs US 10Y.",
         "news": "Wed: AU GDP q/q.",
         "target": "🏹 Target: 0.7150"
     },
     "JPY=X": {
         "name": "USD/JPY", "min": 105, "max": 140, "bank": "BoJ", "sentiment": "Hawkish-Lean",
-        "deep": "Intervention threat at 157.00. BoJ eyes April rate hike.",
-        "bond": "JGB 10Y (2.13%) vs US 10Y (4.02%).",
+        "deep": "BoJ eyes April rate hike. Watch for intervention at 157.00.",
+        "bond": "JGB 10Y vs US 10Y.",
         "news": "Tue: BoJ Gov Ueda Speech.",
         "target": "🏹 Target: 153.20"
     },
+    "GBPJPY=X": { # Added Pair
+        "name": "GBP/JPY", "min": 140, "max": 200, "bank": "BoE/BoJ", "sentiment": "Volatile",
+        "deep": "The 'Beast'. Driven by UK Gilt yields vs BoJ hawkishness.",
+        "bond": "UK Gilt 10Y vs JGB 10Y context.",
+        "news": "Thu: UK MPC Meeting Minutes.",
+        "target": "🏹 Target: 212.50"
+    },
+    "EURJPY=X": { # Added Pair
+        "name": "EUR/JPY", "min": 120, "max": 170, "bank": "ECB/BoJ", "sentiment": "Neutral-Bullish",
+        "deep": "Euro resilience meets Yen weakness. Watch 185.00 level.",
+        "bond": "Bund 10Y vs JGB 10Y context.",
+        "news": "Tue: Eurozone CPI.",
+        "target": "🏹 Target: 186.20"
+    },
     "NZDUSD=X": {
         "name": "NZD/USD", "min": 60, "max": 90, "bank": "RBNZ", "sentiment": "Dovish",
-        "deep": "RBNZ prioritizes growth over inflation containment.",
-        "bond": "NZ 10Y (4.35%) vs US 10Y (4.02%).",
+        "deep": "RBNZ prioritizing growth. Weakest of the commodity bloc.",
+        "bond": "NZ 10Y vs US 10Y.",
         "news": "Tue: NZ Terms of Trade.",
         "target": "🏹 Target: 0.5880"
     },
     "GBPUSD=X": {
         "name": "GBP/USD", "min": 85, "max": 115, "bank": "BoE", "sentiment": "Hold",
-        "deep": "Support at 1.3450 as UK inflation expectations edge higher.",
-        "bond": "Gilt 10Y (4.30%) vs US 10Y (4.02%).",
+        "deep": "Support at 1.3450. UK inflation remains 'sticky'.",
+        "bond": "Gilt 10Y vs US 10Y.",
         "news": "Fri: US NFP Payrolls.",
         "target": "🏹 Target: 1.3580"
     },
     "EURUSD=X": {
         "name": "EUR/USD", "min": 65, "max": 85, "bank": "ECB", "sentiment": "Neutral",
-        "deep": "German stimulus floor. ECB on hold until Dec.",
-        "bond": "Bund 10Y (2.64%) vs US 10Y (4.02%).",
+        "deep": "ECB on hold until Dec. German stimulus is the floor.",
+        "bond": "Bund 10Y vs US 10Y.",
         "news": "Tue: Eurozone CPI.",
         "target": "🏹 Target: 1.1910"
     },
     "USDCAD=X": {
         "name": "USD/CAD", "min": 75, "max": 100, "bank": "BoC", "sentiment": "Cautious",
-        "deep": "CAD under-performing on global tariff concerns.",
-        "bond": "CA 10Y (3.16%) vs US 10Y (4.02%).",
+        "deep": "CAD underperforming on global tariff concerns.",
+        "bond": "CA 10Y vs US 10Y.",
         "news": "Wed: Canada GDP.",
         "target": "🏹 Target: 1.3930"
     }
@@ -164,20 +179,19 @@ for t, d in market_logic.items():
 # 7. MAIN UI
 st.title("📊 ICT Multi-Pair Intelligence Terminal")
 
-y_col1, y_col2, y_col3 = st.columns(3) # Added third column
+y_col1, y_col2, y_col3 = st.columns(3)
 with y_col1:
     sp_au, txt_au, _ = get_yield_details("AUD/USD")
     st.metric("AU-US 10Y Yield Spread", f"{sp_au:.3f}%", delta=txt_au)
 with y_col2:
     sp_nz, txt_nz, _ = get_yield_details("NZD/USD")
     st.metric("NZ-US 10Y Yield Spread", f"{sp_nz:.3f}%", delta=txt_nz)
-with y_col3: # Standalone USD Yield Trend
+with y_col3:
     us_val, us_trend = get_usd_standalone_trend()
     st.metric("US 10Y Yield (USD)", f"{us_val:.3f}%", delta=us_trend)
 
 st.divider()
 
-# Best Daily Pair Logic
 results = []
 for t, d in market_logic.items():
     s, p, stt, r = calculate_ict_probability(t, d['min'], d['max'])
@@ -189,7 +203,7 @@ if best_pick['score'] >= 70:
 else:
     st.warning("⚖️ **Market Status: No High-Prob Setups Found.**")
 
-# 8. MARKET GRID
+# 8. MARKET GRID (Now 8 pairs automatically arranged)
 cols = st.columns(3)
 for i, (ticker, info) in enumerate(market_logic.items()):
     with cols[i % 3]:
@@ -205,7 +219,6 @@ for i, (ticker, info) in enumerate(market_logic.items()):
             st.markdown(f"**ICT Conviction: :{color}[{score}% ({status})]**")
             st.progress(score / 100)
             
-            # GET TREND FOR THIS SPECIFIC PAIR
             _, _, yield_trend = get_yield_details(info['name'])
             
             with st.expander("🔍 Strategic & News Analysis"):
@@ -215,7 +228,7 @@ for i, (ticker, info) in enumerate(market_logic.items()):
                 st.markdown(f"**High Impact News:** {info['news']}")
                 st.info(info['target'])
                 st.caption(f"Body-to-Range Ratio: {ratio:.1%}")
-        except Exception as e:
+        except:
             st.error(f"Stream Down: {info['name']}")
 
 # 9. STRATEGIC OUTLOOK
