@@ -57,6 +57,22 @@ def get_yield_details(pair_name="AUD/USD"):
     except:
         return 0, "Yield Error", "⚖️ STABLE"
 
+# NEW FEATURE: STANDALONE USD TREND ENGINE
+def get_usd_standalone_trend():
+    try:
+        us10_ticker = yf.Ticker("^TNX")
+        us10_hist = us10_ticker.history(period="5d")
+        current_us = us10_hist['Close'].iloc[-1]
+        avg_us = us10_hist['Close'].mean()
+        diff = current_us - avg_us
+        
+        if diff > 0.15: trend = "📈 DRASTICALLY INCREASING"
+        elif diff < -0.15: trend = "📉 DRASTICALLY DECREASING"
+        else: trend = "⚖️ STABLE"
+        return current_us, trend
+    except:
+        return 0, "⚖️ STABLE"
+
 # 4. ICT PROBABILITY ENGINE
 def calculate_ict_probability(ticker, range_min, range_max):
     try:
@@ -148,13 +164,16 @@ for t, d in market_logic.items():
 # 7. MAIN UI
 st.title("📊 ICT Multi-Pair Intelligence Terminal")
 
-y_col1, y_col2 = st.columns(2)
+y_col1, y_col2, y_col3 = st.columns(3) # Added third column
 with y_col1:
     sp_au, txt_au, _ = get_yield_details("AUD/USD")
     st.metric("AU-US 10Y Yield Spread", f"{sp_au:.3f}%", delta=txt_au)
 with y_col2:
     sp_nz, txt_nz, _ = get_yield_details("NZD/USD")
     st.metric("NZ-US 10Y Yield Spread", f"{sp_nz:.3f}%", delta=txt_nz)
+with y_col3: # Standalone USD Yield Trend
+    us_val, us_trend = get_usd_standalone_trend()
+    st.metric("US 10Y Yield (USD)", f"{us_val:.3f}%", delta=us_trend)
 
 st.divider()
 
