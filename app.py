@@ -123,47 +123,47 @@ def calculate_ict_probability(ticker, range_min, range_max):
     except:
         return 0, 0, "ERR", 0
 
-# 5. MASTER DATA INTELLIGENCE (Strictly Reverted Content)
+# 5. MASTER DATA INTELLIGENCE
 market_logic = {
     "AUDUSD=X": {
         "name": "AUD/USD", "min": 65, "max": 85, "bank": "RBA", "sentiment": "Hawkish",
         "deep": "RBA 3.85% yield remains the strongest carry driver in the G10.",
-        "bond": "AU 10Y vs US 10Y.", "news": "Wed: AU GDP q/q.", "target": "🏹 Target: 0.7150"
+        "bond": "AU 10Y vs US 10Y", "news": "Wed: AU GDP q/q.", "target": "🏹 Target: 0.7150"
     },
     "JPY=X": {
         "name": "USD/JPY", "min": 105, "max": 140, "bank": "BoJ", "sentiment": "Hawkish-Lean",
         "deep": "BoJ eyes April rate hike. Watch for intervention at 157.00.",
-        "bond": "JGB 10Y vs US 10Y.", "news": "Tue: BoJ Gov Ueda Speech.", "target": "🏹 Target: 153.20"
+        "bond": "JGB 10Y vs US 10Y", "news": "Tue: BoJ Gov Ueda Speech.", "target": "🏹 Target: 153.20"
     },
     "GBPJPY=X": {
         "name": "GBP/JPY", "min": 140, "max": 200, "bank": "BoE/BoJ", "sentiment": "Volatile",
         "deep": "The 'Beast'. Driven by UK Gilt yields vs BoJ hawkishness.",
-        "bond": "UK Gilt 10Y vs JGB 10Y context.", "news": "Thu: UK MPC Meeting Minutes.", "target": "🏹 Target: 212.50"
+        "bond": "UK Gilt 10Y vs JGB 10Y", "news": "Thu: UK MPC Meeting Minutes.", "target": "🏹 Target: 212.50"
     },
     "EURJPY=X": {
         "name": "EUR/JPY", "min": 120, "max": 170, "bank": "ECB/BoJ", "sentiment": "Neutral-Bullish",
         "deep": "Euro resilience meets Yen weakness. Watch 185.00 level.",
-        "bond": "Bund 10Y vs JGB 10Y context.", "news": "Tue: Eurozone CPI.", "target": "🏹 Target: 186.20"
+        "bond": "Bund 10Y vs JGB 10Y", "news": "Tue: Eurozone CPI.", "target": "🏹 Target: 186.20"
     },
     "NZDUSD=X": {
         "name": "NZD/USD", "min": 60, "max": 90, "bank": "RBNZ", "sentiment": "Dovish",
         "deep": "RBNZ prioritizing growth. Weakest of the commodity bloc.",
-        "bond": "NZ 10Y vs US 10Y.", "news": "Tue: NZ Terms of Trade.", "target": "🏹 Target: 0.5880"
+        "bond": "NZ 10Y vs US 10Y", "news": "Tue: NZ Terms of Trade.", "target": "🏹 Target: 0.5880"
     },
     "GBPUSD=X": {
         "name": "GBP/USD", "min": 85, "max": 115, "bank": "BoE", "sentiment": "Hold",
         "deep": "Support at 1.3450. UK inflation remains 'sticky'.",
-        "bond": "Gilt 10Y vs US 10Y.", "news": "Fri: US NFP Payrolls.", "target": "🏹 Target: 1.3580"
+        "bond": "Gilt 10Y vs US 10Y", "news": "Fri: US NFP Payrolls.", "target": "🏹 Target: 1.3580"
     },
     "EURUSD=X": {
         "name": "EUR/USD", "min": 65, "max": 85, "bank": "ECB", "sentiment": "Neutral",
         "deep": "ECB on hold until Dec. German stimulus is the floor.",
-        "bond": "Bund 10Y vs US 10Y.", "news": "Tue: Eurozone CPI.", "target": "🏹 Target: 1.1910"
+        "bond": "Bund 10Y vs US 10Y", "news": "Tue: Eurozone CPI.", "target": "🏹 Target: 1.1910"
     },
     "USDCAD=X": {
         "name": "USD/CAD", "min": 75, "max": 100, "bank": "BoC", "sentiment": "Cautious",
         "deep": "CAD underperforming on global tariff concerns.",
-        "bond": "CA 10Y vs US 10Y.", "news": "Wed: Canada GDP.", "target": "🏹 Target: 1.3930"
+        "bond": "CA 10Y vs US 10Y", "news": "Wed: Canada GDP.", "target": "🏹 Target: 1.3930"
     }
 }
 
@@ -224,7 +224,7 @@ for i, (ticker, info) in enumerate(market_logic.items()):
             st.markdown(f"**ICT Conviction: :{color}[{score}% ({status})]**")
             st.progress(score / 100)
             
-            _, _, yield_trend, divergence = get_yield_details(info['name'])
+            spread, _, yield_trend, divergence = get_yield_details(info['name'])
             
             with st.expander("🔍 Strategic & News Analysis"):
                 st.markdown(f"**Market Sentiment:** {info['deep']}")
@@ -237,7 +237,8 @@ for i, (ticker, info) in enumerate(market_logic.items()):
                 else:
                     st.markdown(f"**Divergence Status:** `{divergence}`")
                     
-                st.markdown(f"**Bond Context:** {info['bond']}")
+                # UPDATED BOND CONTEXT WITH LIVE SPREAD
+                st.markdown(f"**Bond Context:** {info['bond']} | **Spread: {spread:.3f}%**")
                 st.markdown(f"**High Impact News:** {info['news']}")
                 st.info(info['target'])
                 st.caption(f"Body-to-Range Ratio: {ratio:.1%}")
