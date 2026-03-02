@@ -71,11 +71,9 @@ def get_yield_details(pair_name="AUD/USD"):
                     div_status = "⚠️ FRONT-RUN: BUY" if velocity_alert else "⚠️ DIVERGENCE: BUY"
         
         spread = current_f - us10
-        sentiment = "🚀 BULLISH" if spread > 0.4 else "🩸 BEARISH" if spread < -0.4 else "⚖️ NEUTRAL"
-        
-        return spread, sentiment, trend, div_status
+        return spread, trend, div_status
     except:
-        return 0, "Yield Error", "⚖️ STABLE", "NORMAL"
+        return 0, "⚖️ STABLE", "NORMAL"
 
 def get_usd_standalone_trend():
     try:
@@ -112,7 +110,7 @@ def calculate_ict_probability(ticker, range_min, range_max):
     except:
         return 0, 0, "ERR", 0
 
-# 5. MASTER DATA
+# 5. MASTER DATA INTELLIGENCE (FULL RESTORATION)
 market_logic = {
     "AUDUSD=X": {"name": "AUD/USD", "min": 65, "max": 85, "bank": "RBA", "sentiment": "Hawkish", "deep": "RBA 3.85% yield remains the strongest carry driver in the G10.", "bond": "AU 10Y vs US 10Y", "news": "Wed: AU GDP q/q.", "target": "🏹 Target: 0.7150"},
     "JPY=X": {"name": "USD/JPY", "min": 105, "max": 140, "bank": "BoJ", "sentiment": "Hawkish-Lean", "deep": "BoJ eyes April rate hike. Watch for intervention at 157.00.", "bond": "JGB 10Y vs US 10Y", "news": "Tue: BoJ Gov Ueda Speech.", "target": "🏹 Target: 153.20"},
@@ -136,18 +134,18 @@ for entry in news_feed:
 st.title("📊 ICT Multi-Pair Intelligence Terminal")
 y_col1, y_col2, y_col3 = st.columns(3)
 with y_col1:
-    sp_au, txt_au, _, _ = get_yield_details("AUD/USD")
-    st.metric("AU-US 10Y Spread", f"{sp_au:.3f}%", delta=txt_au)
+    sp_au, _, _ = get_yield_details("AUD/USD")
+    st.metric("AU-US 10Y Spread", f"{sp_au:.3f}%")
 with y_col2:
-    sp_nz, txt_nz, _, _ = get_yield_details("NZD/USD")
-    st.metric("NZ-US 10Y Spread", f"{sp_nz:.3f}%", delta=txt_nz)
+    sp_nz, _, _ = get_yield_details("NZD/USD")
+    st.metric("NZ-US 10Y Spread", f"{sp_nz:.3f}%")
 with y_col3:
     us_val, us_trend = get_usd_standalone_trend()
     st.metric("US 10Y Yield", f"{us_val:.3f}%", delta=us_trend)
 
 st.divider()
 
-# 8. THE TABS (THE BEEF)
+# 8. THE TABS
 tab1, tab2 = st.tabs(["🖥 Detailed Market Grid", "🥩 Executive Summary"])
 
 with tab1:
@@ -162,17 +160,21 @@ with tab1:
                 st.metric("Price", f"{price:.4f}", f"{pips:.1f} Pips")
                 color = "green" if score >= 70 else "orange" if score >= 40 else "red"
                 st.markdown(f"**ICT Conviction: :{color}[{score}% ({status})]**")
+                st.progress(score / 100)
                 
-                spread, _, yield_trend, divergence = get_yield_details(info['name'])
+                spread, yield_trend, divergence = get_yield_details(info['name'])
                 
                 with st.expander("🔍 Strategic & News Analysis"):
-                    st.markdown(f"**Sentiment:** {info['deep']}")
+                    st.markdown(f"**Market Sentiment:** {info['deep']}")
                     st.markdown(f"**Yield Trend:** `{yield_trend}`") 
+                    
                     if "FRONT-RUN" in divergence: st.warning(f"⚡ {divergence}")
                     elif "BUY" in divergence: st.success(f"🚀 {divergence}")
                     elif "SELL" in divergence: st.error(f"🩸 {divergence}")
-                    else: st.markdown(f"**Status:** `{divergence}`")
-                    st.markdown(f"**Spread:** {spread:.3f}% | **News:** {info['news']}")
+                    else: st.markdown(f"**Divergence Status:** `{divergence}`")
+                    
+                    st.markdown(f"**Bond Context:** {info['bond']} | **Spread: {spread:.3f}%**")
+                    st.markdown(f"**High Impact News:** {info['news']}")
                     st.info(info['target'])
             except: st.error(f"Stream Down: {info['name']}")
 
@@ -181,21 +183,17 @@ with tab2:
     summary_list = []
     for ticker, info in market_logic.items():
         score, _, status, ratio = calculate_ict_probability(ticker, info['min'], info['max'])
-        spread, _, yield_trend, divergence = get_yield_details(info['name'])
+        spread, yield_trend, divergence = get_yield_details(info['name'])
         
         summary_list.append({
             "Pair": info['name'],
-            "ICT Score": f"{score}% ({status})",
+            "Conviction": f"{score}% ({status})",
             "Yield Trend": yield_trend,
-            "Signal Status": divergence,
-            "Yield Spread": f"{spread:.3f}%",
+            "Signal": divergence,
+            "Spread": f"{spread:.3f}%",
             "Body/Range": f"{ratio*100:.1f}%",
             "Target": info['target']
         })
     
     summary_df = pd.DataFrame(summary_list)
-    # Style the dataframe for the dashboard
     st.dataframe(summary_df, use_container_width=True, hide_index=True)
-    
-    st.markdown("---")
-    st.caption("Summary is recalculated every 5 minutes. Use for quick session bias confirmation.")
