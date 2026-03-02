@@ -20,8 +20,6 @@ def get_live_news():
 
 # 3. YIELD & FRONT-RUN VELOCITY ENGINE
 def get_yield_details(pair_name="AUD/USD"):
-    # AUTOMATED TICKER RECOVERY SYSTEM
-    # Logic: [Primary 2026 Ticker, Secondary Fallback, Tertiary Fallback]
     ticker_map = {
         "AUD/USD": ["^AU10Y", "AU10Y.F", "AU10YT=RR"],
         "NZD/USD": ["^NZ10Y", "NZ10Y.F", "NZ10YT=RR"],
@@ -33,12 +31,11 @@ def get_yield_details(pair_name="AUD/USD"):
         "EUR/JPY": ["^GDBR10", "BUND10Y.BD", "DE10YT=RR"]
     }
     
+    source_label = "Live"
     try:
-        # Fetch US 10Y Baseline
         us10_data = yf.Ticker("^TNX").history(period="5d")
         us10 = us10_data['Close'].iloc[-1] if not us10_data.empty else 4.15
         
-        # Automated Search for Foreign Yield
         candidates = ticker_map.get(pair_name, ["^AU10Y"])
         current_f = None
         f_hist = pd.DataFrame()
@@ -50,8 +47,8 @@ def get_yield_details(pair_name="AUD/USD"):
                 current_f = f_hist['Close'].iloc[-1]
                 break
         
-        # Final Safeguard: If no tickers work, use institutional spread offset
         if current_f is None:
+            source_label = "Fallback"
             offsets = {"AUD": 0.20, "NZD": 0.45, "JPY": -3.20, "GBP": -0.05, "EUR": -1.80, "CAD": -0.40}
             curr = pair_name.split('/')[0] if "USD" in pair_name.split('/')[1] else pair_name.split('/')[1]
             current_f = us10 + offsets.get(curr, 0.0)
@@ -60,7 +57,6 @@ def get_yield_details(pair_name="AUD/USD"):
         diff = current_f - avg_f
         trend = "📈 FIRM INCREASE" if diff > 0.10 else "📉 FIRM DECREASE" if diff < -0.10 else "⚖️ STABLE"
 
-        # FRONT-RUN VELOCITY + DIRECTION LOGIC
         pair_ticker = pair_name.replace("/", "") + "=X"
         p_data = yf.Ticker(pair_ticker).history(period="1d", interval="15m")
         div_status = "✅ CONVERGENT"
@@ -77,9 +73,9 @@ def get_yield_details(pair_name="AUD/USD"):
                     div_status = "⚠️ FRONT-RUN: SELL"
 
         spread = current_f - us10
-        return spread, trend, div_status, us10
+        return spread, trend, div_status, us10, source_label
     except:
-        return 0.001, "⚖️ STABLE", "NORMAL", 4.15
+        return 0.001, "⚖️ STABLE", "NORMAL", 4.15, "Fallback"
 
 # 4. ICT PROBABILITY ENGINE
 def calculate_ict_probability(ticker, range_min, range_max):
@@ -122,11 +118,11 @@ for entry in news_feed:
 st.title("📊 ICT Multi-Pair Intelligence Terminal")
 y_col1, y_col2, y_col3 = st.columns(3)
 with y_col1:
-    sp_au, _, _, _ = get_yield_details("AUD/USD")
-    st.metric("AU-US 10Y Spread", f"{sp_au:.3f}%")
+    sp_au, _, _, _, src_au = get_yield_details("AUD/USD")
+    st.metric("AU-US 10Y Spread", f"{sp_au:.3f}%", f"Source: {src_au}", delta_color="off")
 with y_col2:
-    sp_nz, _, _, _ = get_yield_details("NZD/USD")
-    st.metric("NZ-US 10Y Spread", f"{sp_nz:.3f}%")
+    sp_nz, _, _, _, src_nz = get_yield_details("NZD/USD")
+    st.metric("NZ-US 10Y Spread", f"{sp_nz:.3f}%", f"Source: {src_nz}", delta_color="off")
 with y_col3:
     try: us_val = yf.Ticker("^TNX").history(period="1d")['Close'].iloc[-1]
     except: us_val = 4.15
@@ -149,7 +145,7 @@ with tab1:
                 color = "green" if score >= 70 else "orange" if score >= 40 else "red"
                 st.markdown(f"**ICT Conviction: :{color}[{score}% ({status})]**")
                 st.progress(score / 100)
-                spread, yield_trend, divergence, _ = get_yield_details(info['name'])
+                spread, yield_trend, divergence, _, src_tag = get_yield_details(info['name'])
                 with st.expander("🔍 Strategic & News Analysis", expanded=True):
                     st.markdown(f"**Market Sentiment:** {info['deep']}")
                     st.markdown(f"**Yield Trend:** `{yield_trend}`") 
@@ -157,7 +153,7 @@ with tab1:
                     elif "BUY" in divergence: st.success(f"🚀 {divergence}")
                     elif "SELL" in divergence: st.error(f"🩸 {divergence}")
                     else: st.markdown(f"**Divergence Status:** `{divergence}`")
-                    st.markdown(f"**Bond Context:** {info['bond']} | **Spread: {spread:.3f}%**")
+                    st.markdown(f"**Bond Context:** {info['bond']} | **Spread: {spread:.3f}% ({src_tag})**")
                     st.markdown(f"**High Impact News:** {info['news']}")
                     st.info(info['target'])
             except: st.error(f"Stream Down: {info['name']}")
@@ -167,10 +163,10 @@ with tab2:
     summary_list = []
     for ticker, info in market_logic.items():
         score, _, status, ratio, _, _ = calculate_ict_probability(ticker, info['min'], info['max'])
-        spread, yield_trend, divergence, _ = get_yield_details(info['name'])
+        spread, yield_trend, divergence, _, src_tag = get_yield_details(info['name'])
         summary_list.append({
             "Pair": info['name'], "Conviction": f"{score}% ({status})", "Yield Trend": yield_trend,
-            "Signal": divergence, "Spread": f"{spread:.3f}%", "Body/Range": f"{ratio*100:.1f}%", "Target": info['target']
+            "Signal": divergence, "Spread": f"{spread:.3f}% ({src_tag})", "Body/Range": f"{ratio*100:.1f}%", "Target": info['target']
         })
     st.dataframe(pd.DataFrame(summary_list), use_container_width=True, hide_index=True)
 
@@ -178,7 +174,7 @@ with tab3:
     st.header(f"📅 Daily Closing Intelligence")
     for ticker, info in market_logic.items():
         score, pips, _, ratio, prev, last = calculate_ict_probability(ticker, info['min'], info['max'])
-        spread, trend, div, us_yield = get_yield_details(info['name'])
+        spread, trend, div, us_yield, _ = get_yield_details(info['name'])
         dir_text = "downside" if last['Close'] < last['Open'] else "upside"
         move_pips = abs(last['Close'] - last['Open']) * (100 if "JPY" in ticker else 10000)
         st.subheader(f"{info['name']} ({info['story']})")
