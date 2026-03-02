@@ -20,24 +20,43 @@ def get_live_news():
 
 # 3. YIELD & FRONT-RUN VELOCITY ENGINE
 def get_yield_details(pair_name="AUD/USD"):
-    symbols = {
-        "AUD/USD": "AU10Y.F", "NZD/USD": "NZ10Y.F", "USD/JPY": "GJGB10:IND", 
-        "GBP/USD": "GUKG10:IND", "EUR/USD": "GDBR10:IND", "USD/CAD": "GCAN10Y:IND",
-        "GBP/JPY": "GUKG10:IND", "EUR/JPY": "GDBR10:IND" 
+    # AUTOMATED TICKER RECOVERY SYSTEM
+    # Logic: [Primary 2026 Ticker, Secondary Fallback, Tertiary Fallback]
+    ticker_map = {
+        "AUD/USD": ["^AU10Y", "AU10Y.F", "AU10YT=RR"],
+        "NZD/USD": ["^NZ10Y", "NZ10Y.F", "NZ10YT=RR"],
+        "USD/JPY": ["^GJGB10", "JP10Y.BD", "JGB10Y.F"],
+        "GBP/USD": ["^GUKG10", "GILT.F", "GB10YT=RR"],
+        "EUR/USD": ["^GDBR10", "BUND10Y.BD", "DE10YT=RR"],
+        "USD/CAD": ["^GCAN10", "CAN10Y.F", "CA10YT=RR"],
+        "GBP/JPY": ["^GUKG10", "GILT.F", "GB10YT=RR"],
+        "EUR/JPY": ["^GDBR10", "BUND10Y.BD", "DE10YT=RR"]
     }
     
     try:
-        us10_ticker = yf.Ticker("^TNX")
-        us10_hist = us10_ticker.history(period="5d")
-        us10 = us10_hist['Close'].iloc[-1]
+        # Fetch US 10Y Baseline
+        us10_data = yf.Ticker("^TNX").history(period="5d")
+        us10 = us10_data['Close'].iloc[-1] if not us10_data.empty else 4.15
         
-        ticker_sym = symbols.get(pair_name, "AU10Y.F")
-        f_ticker = yf.Ticker(ticker_sym)
-        f_hist = f_ticker.history(period="5d")
+        # Automated Search for Foreign Yield
+        candidates = ticker_map.get(pair_name, ["^AU10Y"])
+        current_f = None
+        f_hist = pd.DataFrame()
+
+        for ticker in candidates:
+            temp_ticker = yf.Ticker(ticker)
+            f_hist = temp_ticker.history(period="5d")
+            if not f_hist.empty:
+                current_f = f_hist['Close'].iloc[-1]
+                break
         
-        current_f = f_hist['Close'].iloc[-1] if not f_hist.empty else us10 + 0.02
+        # Final Safeguard: If no tickers work, use institutional spread offset
+        if current_f is None:
+            offsets = {"AUD": 0.20, "NZD": 0.45, "JPY": -3.20, "GBP": -0.05, "EUR": -1.80, "CAD": -0.40}
+            curr = pair_name.split('/')[0] if "USD" in pair_name.split('/')[1] else pair_name.split('/')[1]
+            current_f = us10 + offsets.get(curr, 0.0)
+        
         avg_f = f_hist['Close'].mean() if not f_hist.empty else current_f
-        
         diff = current_f - avg_f
         trend = "📈 FIRM INCREASE" if diff > 0.10 else "📉 FIRM DECREASE" if diff < -0.10 else "⚖️ STABLE"
 
@@ -52,8 +71,7 @@ def get_yield_details(pair_name="AUD/USD"):
             pip_velocity = abs(price_change * multiplier)
             
             if pip_velocity >= 15 and trend == "⚖️ STABLE":
-                # Determine Direction based on Spread Trend
-                if "INCREASE" in trend or current_f > us10:
+                if current_f > us10:
                     div_status = "⚠️ FRONT-RUN: BUY"
                 else:
                     div_status = "⚠️ FRONT-RUN: SELL"
