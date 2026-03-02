@@ -20,16 +20,10 @@ def get_live_news():
 
 # 3. YIELD & FRONT-RUN VELOCITY ENGINE
 def get_yield_details(pair_name="AUD/USD"):
-    # UPDATED SYMBOLS FOR RELIABILITY
     symbols = {
-        "AUD/USD": "AU10Y.F",      # Australian 10Y
-        "NZD/USD": "NZ10Y.F",      # New Zealand 10Y
-        "USD/JPY": "GJGB10:IND",   # Japan 10Y (Generic)
-        "GBP/USD": "GUKG10:IND",   # UK 10Y (Generic)
-        "EUR/USD": "GDBR10:IND",   # Germany 10Y (Generic)
-        "USD/CAD": "GCAN10Y:IND",  # Canada 10Y
-        "GBP/JPY": "GUKG10:IND", 
-        "EUR/JPY": "GDBR10:IND" 
+        "AUD/USD": "AU10Y.F", "NZD/USD": "NZ10Y.F", "USD/JPY": "GJGB10:IND", 
+        "GBP/USD": "GUKG10:IND", "EUR/USD": "GDBR10:IND", "USD/CAD": "GCAN10Y:IND",
+        "GBP/JPY": "GUKG10:IND", "EUR/JPY": "GDBR10:IND" 
     }
     
     try:
@@ -37,63 +31,54 @@ def get_yield_details(pair_name="AUD/USD"):
         us10_hist = us10_ticker.history(period="5d")
         us10 = us10_hist['Close'].iloc[-1]
         
-        ticker_sym = symbols.get(pair_name, "^AU10Y")
+        ticker_sym = symbols.get(pair_name, "AU10Y.F")
         f_ticker = yf.Ticker(ticker_sym)
         f_hist = f_ticker.history(period="5d")
         
-        # If specific bond fails, use a secondary proxy or the last valid US 10Y +/- a carry offset
-        if f_hist.empty:
-            current_f = us10 + 0.015 # Fallback to prevent 0.000
-        else:
-            current_f = f_hist['Close'].iloc[-1]
-            
+        current_f = f_hist['Close'].iloc[-1] if not f_hist.empty else us10 + 0.02
         avg_f = f_hist['Close'].mean() if not f_hist.empty else current_f
         
         diff = current_f - avg_f
-        if diff > 0.10: trend = "📈 FIRM INCREASE"
-        elif diff < -0.10: trend = "📉 FIRM DECREASE"
-        else: trend = "⚖️ STABLE"
+        trend = "📈 FIRM INCREASE" if diff > 0.10 else "📉 FIRM DECREASE" if diff < -0.10 else "⚖️ STABLE"
 
-        # FRONT-RUN VELOCITY
+        # FRONT-RUN VELOCITY + DIRECTION LOGIC
         pair_ticker = pair_name.replace("/", "") + "=X"
         p_data = yf.Ticker(pair_ticker).history(period="1d", interval="15m")
-        velocity_alert = False
+        div_status = "✅ CONVERGENT"
+        
         if len(p_data) > 1:
             price_change = p_data['Close'].iloc[-1] - p_data['Close'].iloc[-2]
             multiplier = 100 if "JPY" in pair_name else 10000
             pip_velocity = abs(price_change * multiplier)
+            
             if pip_velocity >= 15 and trend == "⚖️ STABLE":
-                velocity_alert = True
+                # Determine Direction based on Spread Trend
+                if "INCREASE" in trend or current_f > us10:
+                    div_status = "⚠️ FRONT-RUN: BUY"
+                else:
+                    div_status = "⚠️ FRONT-RUN: SELL"
 
-        div_status = "✅ CONVERGENT"
-        if velocity_alert:
-            div_status = "⚠️ FRONT-RUN DETECTED"
-        
         spread = current_f - us10
         return spread, trend, div_status, us10
     except:
-        return 0.001, "⚖️ STABLE", "NORMAL", 4.15 # Baseline fallback instead of 0
+        return 0.001, "⚖️ STABLE", "NORMAL", 4.15
 
 # 4. ICT PROBABILITY ENGINE
 def calculate_ict_probability(ticker, range_min, range_max):
     try:
         data = yf.Ticker(ticker).history(period="5d")
-        last = data.iloc[-1]
-        prev = data.iloc[-2]
+        last, prev = data.iloc[-1], data.iloc[-2]
         multiplier = 100 if "JPY" in ticker else 10000
         r_pips = (last['High'] - last['Low']) * multiplier
         b_pips = abs(last['Open'] - last['Close']) * multiplier
         ratio = b_pips / r_pips if r_pips > 0 else 0
-        
         score = 0
         if 1 <= datetime.now().weekday() <= 3: score += 35 
         if range_min <= r_pips <= range_max: score += 35
         if ratio >= 0.55: score += 30
-        
         status = "HIGH" if score >= 70 else "MID" if score >= 40 else "LOW"
         return score, r_pips, status, ratio, prev, last
-    except:
-        return 0, 0, "ERR", 0, None, None
+    except: return 0, 0, "ERR", 0, None, None
 
 # 5. MASTER DATA (STRICTLY PRESERVED)
 market_logic = {
@@ -125,11 +110,8 @@ with y_col2:
     sp_nz, _, _, _ = get_yield_details("NZD/USD")
     st.metric("NZ-US 10Y Spread", f"{sp_nz:.3f}%")
 with y_col3:
-    # REPLACED STATIC US YIELD WITH LIVE CALL
-    try:
-        us_val = yf.Ticker("^TNX").history(period="1d")['Close'].iloc[-1]
-    except:
-        us_val = 4.15
+    try: us_val = yf.Ticker("^TNX").history(period="1d")['Close'].iloc[-1]
+    except: us_val = 4.15
     st.metric("US 10Y Yield", f"{us_val:.3f}%")
 
 st.divider()
@@ -149,9 +131,7 @@ with tab1:
                 color = "green" if score >= 70 else "orange" if score >= 40 else "red"
                 st.markdown(f"**ICT Conviction: :{color}[{score}% ({status})]**")
                 st.progress(score / 100)
-                
                 spread, yield_trend, divergence, _ = get_yield_details(info['name'])
-                
                 with st.expander("🔍 Strategic & News Analysis", expanded=True):
                     st.markdown(f"**Market Sentiment:** {info['deep']}")
                     st.markdown(f"**Yield Trend:** `{yield_trend}`") 
@@ -181,10 +161,8 @@ with tab3:
     for ticker, info in market_logic.items():
         score, pips, _, ratio, prev, last = calculate_ict_probability(ticker, info['min'], info['max'])
         spread, trend, div, us_yield = get_yield_details(info['name'])
-        
         dir_text = "downside" if last['Close'] < last['Open'] else "upside"
         move_pips = abs(last['Close'] - last['Open']) * (100 if "JPY" in ticker else 10000)
-        
         st.subheader(f"{info['name']} ({info['story']})")
         c1, c2 = st.columns(2)
         with c1:
