@@ -27,33 +27,26 @@ def get_yield_details(pair_name="AUD/USD"):
     }
     
     try:
-        # US Yield Data
         us10_ticker = yf.Ticker("^TNX")
         us10_hist = us10_ticker.history(period="5d")
         us10 = us10_hist['Close'].iloc[-1]
         us10_prev = us10_hist['Close'].iloc[-2]
         us_dir = "UP" if us10 > us10_prev else "DOWN"
         
-        # Foreign Yield Data
         ticker_sym = symbols.get(pair_name, "^AU10Y")
         f_ticker = yf.Ticker(ticker_sym)
         f_hist = f_ticker.history(period="5d")
+        
         current_f = f_hist['Close'].iloc[-1]
         prev_f = f_hist['Close'].iloc[-2]
         f_dir = "UP" if current_f > prev_f else "DOWN"
-        
-        # Spread Trend Logic
-        current_spread = current_f - us10
-        prev_spread = prev_f - us10_prev
-        spread_arrow = "↑" if current_spread > prev_spread else "↓"
-        
         avg_f = f_hist['Close'].mean()
+        
         diff = current_f - avg_f
         if diff > 0.10: trend = "📈 FIRM INCREASE"
         elif diff < -0.10: trend = "📉 FIRM DECREASE"
         else: trend = "⚖️ STABLE"
 
-        # FRONT-RUN LOGIC
         pair_ticker = pair_name.replace("/", "") + "=X"
         p_data = yf.Ticker(pair_ticker).history(period="1d", interval="15m")
         velocity_alert = False
@@ -64,25 +57,25 @@ def get_yield_details(pair_name="AUD/USD"):
             if pip_velocity >= 15 and trend == "⚖️ STABLE":
                 velocity_alert = True
 
-        # DIVERGENCE ACTION LOGIC
         div_status = "✅ CONVERGENT"
         if f_dir != us_dir:
             if "JPY" in pair_name or pair_name.endswith("/USD"):
                 if f_dir == "UP" and us_dir == "DOWN": 
-                    div_status = "⚠️ FRONT-RUN: INSTITUTIONAL BUY" if velocity_alert else "⚠️ DIVERGENCE: WAIT FOR A BUY"
+                    div_status = "⚠️ FRONT-RUN: BUY" if velocity_alert else "⚠️ DIVERGENCE: BUY"
                 if f_dir == "DOWN" and us_dir == "UP": 
-                    div_status = "⚠️ FRONT-RUN: INSTITUTIONAL SELL" if velocity_alert else "⚠️ DIVERGENCE: WAIT FOR A SELL"
+                    div_status = "⚠️ FRONT-RUN: SELL" if velocity_alert else "⚠️ DIVERGENCE: SELL"
             elif pair_name.startswith("USD/"): 
                 if f_dir == "UP" and us_dir == "DOWN": 
-                    div_status = "⚠️ FRONT-RUN: INSTITUTIONAL SELL" if velocity_alert else "⚠️ DIVERGENCE: WAIT FOR A SELL"
+                    div_status = "⚠️ FRONT-RUN: SELL" if velocity_alert else "⚠️ DIVERGENCE: SELL"
                 if f_dir == "DOWN" and us_dir == "UP": 
-                    div_status = "⚠️ FRONT-RUN: INSTITUTIONAL BUY" if velocity_alert else "⚠️ DIVERGENCE: WAIT FOR A BUY"
+                    div_status = "⚠️ FRONT-RUN: BUY" if velocity_alert else "⚠️ DIVERGENCE: BUY"
         
-        sentiment = "🚀 BULLISH" if current_spread > 0.4 else "🩸 BEARISH" if current_spread < -0.4 else "⚖️ NEUTRAL"
+        spread = current_f - us10
+        sentiment = "🚀 BULLISH" if spread > 0.4 else "🩸 BEARISH" if spread < -0.4 else "⚖️ NEUTRAL"
         
-        return current_spread, sentiment, trend, div_status, spread_arrow
+        return spread, sentiment, trend, div_status
     except:
-        return 0, "Yield Error", "⚖️ STABLE", "NORMAL", ""
+        return 0, "Yield Error", "⚖️ STABLE", "NORMAL"
 
 def get_usd_standalone_trend():
     try:
@@ -119,7 +112,7 @@ def calculate_ict_probability(ticker, range_min, range_max):
     except:
         return 0, 0, "ERR", 0
 
-# 5. MASTER DATA INTELLIGENCE
+# 5. MASTER DATA
 market_logic = {
     "AUDUSD=X": {"name": "AUD/USD", "min": 65, "max": 85, "bank": "RBA", "sentiment": "Hawkish", "deep": "RBA 3.85% yield remains the strongest carry driver in the G10.", "bond": "AU 10Y vs US 10Y", "news": "Wed: AU GDP q/q.", "target": "🏹 Target: 0.7150"},
     "JPY=X": {"name": "USD/JPY", "min": 105, "max": 140, "bank": "BoJ", "sentiment": "Hawkish-Lean", "deep": "BoJ eyes April rate hike. Watch for intervention at 157.00.", "bond": "JGB 10Y vs US 10Y", "news": "Tue: BoJ Gov Ueda Speech.", "target": "🏹 Target: 153.20"},
@@ -139,52 +132,70 @@ for entry in news_feed:
         st.write(f"**{entry.title}**")
         st.markdown(f"[Source Article]({entry.link})")
 
-# 7. MAIN UI
+# 7. MAIN UI TOP METRICS
 st.title("📊 ICT Multi-Pair Intelligence Terminal")
 y_col1, y_col2, y_col3 = st.columns(3)
 with y_col1:
-    sp_au, txt_au, _, _, arr_au = get_yield_details("AUD/USD")
-    st.metric("AU-US 10Y Yield Spread", f"{sp_au:.3f}% {arr_au}", delta=txt_au)
+    sp_au, txt_au, _, _ = get_yield_details("AUD/USD")
+    st.metric("AU-US 10Y Spread", f"{sp_au:.3f}%", delta=txt_au)
 with y_col2:
-    sp_nz, txt_nz, _, _, arr_nz = get_yield_details("NZD/USD")
-    st.metric("NZ-US 10Y Yield Spread", f"{sp_nz:.3f}% {arr_nz}", delta=txt_nz)
+    sp_nz, txt_nz, _, _ = get_yield_details("NZD/USD")
+    st.metric("NZ-US 10Y Spread", f"{sp_nz:.3f}%", delta=txt_nz)
 with y_col3:
     us_val, us_trend = get_usd_standalone_trend()
-    st.metric("US 10Y Yield (USD Standalone)", f"{us_val:.3f}%", delta=us_trend)
+    st.metric("US 10Y Yield", f"{us_val:.3f}%", delta=us_trend)
 
 st.divider()
 
-# 8. MARKET GRID
-cols = st.columns(3)
-for i, (ticker, info) in enumerate(market_logic.items()):
-    with cols[i % 3]:
-        score, pips, status, ratio = calculate_ict_probability(ticker, info['min'], info['max'])
-        try:
-            price_data = yf.Ticker(ticker).history(period="1d")
-            price = price_data['Close'].iloc[-1]
-            st.markdown(f"### {info['name']}")
-            st.metric("Price", f"{price:.4f}", f"{pips:.1f} Pips")
-            color = "green" if score >= 70 else "orange" if score >= 40 else "red"
-            st.markdown(f"**ICT Conviction: :{color}[{score}% ({status})]**")
-            st.progress(score / 100)
-            
-            spread, _, yield_trend, divergence, s_arrow = get_yield_details(info['name'])
-            
-            with st.expander("🔍 Strategic & News Analysis"):
-                st.markdown(f"**Market Sentiment:** {info['deep']}")
-                st.markdown(f"**Yield Trend:** `{yield_trend}`") 
+# 8. THE TABS (THE BEEF)
+tab1, tab2 = st.tabs(["🖥 Detailed Market Grid", "🥩 Executive Summary"])
+
+with tab1:
+    cols = st.columns(3)
+    for i, (ticker, info) in enumerate(market_logic.items()):
+        with cols[i % 3]:
+            score, pips, status, ratio = calculate_ict_probability(ticker, info['min'], info['max'])
+            try:
+                price_data = yf.Ticker(ticker).history(period="1d")
+                price = price_data['Close'].iloc[-1]
+                st.markdown(f"### {info['name']}")
+                st.metric("Price", f"{price:.4f}", f"{pips:.1f} Pips")
+                color = "green" if score >= 70 else "orange" if score >= 40 else "red"
+                st.markdown(f"**ICT Conviction: :{color}[{score}% ({status})]**")
                 
-                if "FRONT-RUN" in divergence:
-                    st.warning(f"⚡ {divergence}")
-                elif "WAIT FOR A BUY" in divergence:
-                    st.success(f"🚀 {divergence}")
-                elif "WAIT FOR A SELL" in divergence:
-                    st.error(f"🩸 {divergence}")
-                else:
-                    st.markdown(f"**Divergence Status:** `{divergence}`")
-                    
-                st.markdown(f"**Bond Context:** {info['bond']} | **Spread: {spread:.3f}% {s_arrow}**")
-                st.markdown(f"**High Impact News:** {info['news']}")
-                st.info(info['target'])
-        except:
-            st.error(f"Stream Down: {info['name']}")
+                spread, _, yield_trend, divergence = get_yield_details(info['name'])
+                
+                with st.expander("🔍 Strategic & News Analysis"):
+                    st.markdown(f"**Sentiment:** {info['deep']}")
+                    st.markdown(f"**Yield Trend:** `{yield_trend}`") 
+                    if "FRONT-RUN" in divergence: st.warning(f"⚡ {divergence}")
+                    elif "BUY" in divergence: st.success(f"🚀 {divergence}")
+                    elif "SELL" in divergence: st.error(f"🩸 {divergence}")
+                    else: st.markdown(f"**Status:** `{divergence}`")
+                    st.markdown(f"**Spread:** {spread:.3f}% | **News:** {info['news']}")
+                    st.info(info['target'])
+            except: st.error(f"Stream Down: {info['name']}")
+
+with tab2:
+    st.header("Institutional Executive Summary")
+    summary_list = []
+    for ticker, info in market_logic.items():
+        score, _, status, ratio = calculate_ict_probability(ticker, info['min'], info['max'])
+        spread, _, yield_trend, divergence = get_yield_details(info['name'])
+        
+        summary_list.append({
+            "Pair": info['name'],
+            "ICT Score": f"{score}% ({status})",
+            "Yield Trend": yield_trend,
+            "Signal Status": divergence,
+            "Yield Spread": f"{spread:.3f}%",
+            "Body/Range": f"{ratio*100:.1f}%",
+            "Target": info['target']
+        })
+    
+    summary_df = pd.DataFrame(summary_list)
+    # Style the dataframe for the dashboard
+    st.dataframe(summary_df, use_container_width=True, hide_index=True)
+    
+    st.markdown("---")
+    st.caption("Summary is recalculated every 5 minutes. Use for quick session bias confirmation.")
