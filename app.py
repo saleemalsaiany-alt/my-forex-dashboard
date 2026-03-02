@@ -2,8 +2,13 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import feedparser
+import requests
 from streamlit_autorefresh import st_autorefresh
 from datetime import datetime
+
+# --- API CONFIG ---
+FRED_API_KEY = "ffc7165283883a234b7d4350877d4ab3"
+FINNHUB_API_KEY = "d6ilsqpr01qm7dc81fvgd6ilsqpr01qm7dc81g00"
 
 # 1. ENGINE & CONFIG
 st.set_page_config(page_title="ICT Strategic Terminal", layout="wide")
@@ -18,45 +23,51 @@ def get_live_news():
     except:
         return []
 
-# 3. YIELD & FRONT-RUN VELOCITY ENGINE
+# 3. HYBRID YIELD ENGINE (FINNHUB + FRED)
 def get_yield_details(pair_name="AUD/USD"):
-    ticker_map = {
-        "AUD/USD": ["^AU10Y", "AU10Y.F", "AU10YT=RR"],
-        "NZD/USD": ["^NZ10Y", "NZ10Y.F", "NZ10YT=RR"],
-        "USD/JPY": ["^GJGB10", "JP10Y.BD", "JGB10Y.F"],
-        "GBP/USD": ["^GUKG10", "GILT.F", "GB10YT=RR"],
-        "EUR/USD": ["^GDBR10", "BUND10Y.BD", "DE10YT=RR"],
-        "USD/CAD": ["^GCAN10", "CAN10Y.F", "CA10YT=RR"],
-        "GBP/JPY": ["^GUKG10", "GILT.F", "GB10YT=RR"],
-        "EUR/JPY": ["^GDBR10", "BUND10Y.BD", "DE10YT=RR"]
+    # Mapping for G10 Yields
+    fred_map = {
+        "AUD/USD": "IRLTLT01AUM156N", "NZD/USD": "IRLTLT01NZM156N",
+        "USD/JPY": "IRLTLT01JPM156N", "GBP/USD": "IRLTLT01GBM156N",
+        "EUR/USD": "IRLTLT01DEM156N", "USD/CAD": "IRLTLT01CAM156N",
+        "GBP/JPY": "IRLTLT01GBM156N", "EUR/JPY": "IRLTLT01DEM156N"
     }
     
-    source_label = "Live"
-    try:
-        us10_data = yf.Ticker("^TNX").history(period="5d")
-        us10 = us10_data['Close'].iloc[-1] if not us10_data.empty else 4.15
-        
-        candidates = ticker_map.get(pair_name, ["^AU10Y"])
-        current_f = None
-        f_hist = pd.DataFrame()
+    # Finnhub Symbols (using 10Y US Treasury baseline for comparison)
+    fh_map = {
+        "AUD/USD": "AU10Y", "NZD/USD": "NZ10Y", "USD/JPY": "JP10Y", 
+        "GBP/USD": "UK10Y", "EUR/USD": "DE10Y", "USD/CAD": "CA10Y"
+    }
 
-        for ticker in candidates:
-            temp_ticker = yf.Ticker(ticker)
-            f_hist = temp_ticker.history(period="5d")
-            if not f_hist.empty:
-                current_f = f_hist['Close'].iloc[-1]
-                break
+    try:
+        # 1. US 10Y Baseline (Live via yFinance)
+        us10 = yf.Ticker("^TNX").history(period="1d")['Close'].iloc[-1]
         
-        if current_f is None:
-            source_label = "Fallback"
-            offsets = {"AUD": 0.20, "NZD": 0.45, "JPY": -3.20, "GBP": -0.05, "EUR": -1.80, "CAD": -0.40}
-            curr = pair_name.split('/')[0] if "USD" in pair_name.split('/')[1] else pair_name.split('/')[1]
-            current_f = us10 + offsets.get(curr, 0.0)
+        # 2. Attempt Finnhub (Intraday Satellite)
+        target_fh = fh_map.get(pair_name, "AU10Y")
+        fh_url = f"https://finnhub.io/api/v1/quote?symbol={target_fh}&token={FINNHUB_API_KEY}"
+        fh_res = requests.get(fh_url).json()
         
+        # Finnhub 'c' is current price. If it exists and isn't 0, we use it.
+        if fh_res.get('c'):
+            current_f = float(fh_res['c'])
+            source_tag = "Finnhub Live"
+        else:
+            # 3. Base Command (FRED Backup)
+            series_id = fred_map.get(pair_name, "IRLTLT01AUM156N")
+            fred_url = f"https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key={FRED_API_KEY}&file_type=json&sort_order=desc&limit=1"
+            fred_res = requests.get(fred_url).json()
+            current_f = float(fred_res['observations'][0]['value'])
+            source_tag = "FRED Anchor"
+
+        # Calculate Trend (Using yFinance history for the trend slope)
+        y_ticker = yf.Ticker(f"^{fh_map.get(pair_name, 'AU10Y')}")
+        f_hist = y_ticker.history(period="5d")
         avg_f = f_hist['Close'].mean() if not f_hist.empty else current_f
         diff = current_f - avg_f
         trend = "📈 FIRM INCREASE" if diff > 0.10 else "📉 FIRM DECREASE" if diff < -0.10 else "⚖️ STABLE"
 
+        # FRONT-RUN VELOCITY
         pair_ticker = pair_name.replace("/", "") + "=X"
         p_data = yf.Ticker(pair_ticker).history(period="1d", interval="15m")
         div_status = "✅ CONVERGENT"
@@ -67,15 +78,12 @@ def get_yield_details(pair_name="AUD/USD"):
             pip_velocity = abs(price_change * multiplier)
             
             if pip_velocity >= 15 and trend == "⚖️ STABLE":
-                if current_f > us10:
-                    div_status = "⚠️ FRONT-RUN: BUY"
-                else:
-                    div_status = "⚠️ FRONT-RUN: SELL"
+                div_status = "⚠️ FRONT-RUN: BUY" if current_f > us10 else "⚠️ FRONT-RUN: SELL"
 
         spread = current_f - us10
-        return spread, trend, div_status, us10, source_label
+        return spread, trend, div_status, us10, source_tag
     except:
-        return 0.001, "⚖️ STABLE", "NORMAL", 4.15, "Fallback"
+        return 0.001, "⚖️ STABLE", "NORMAL", 4.15, "Circuit Breaker"
 
 # 4. ICT PROBABILITY ENGINE
 def calculate_ict_probability(ticker, range_min, range_max):
