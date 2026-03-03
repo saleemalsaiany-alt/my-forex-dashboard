@@ -8,7 +8,7 @@ from datetime import datetime
 
 # --- API CONFIG ---
 FRED_API_KEY = "ffc7165283883a234b7d4350877d4ab3"
-FINNHUB_API_KEY = "d6ilsqpr01qm7dc81fvgd6ilsqpr01qm7dc81g00"
+FINNHUB_API_KEY = "d6ilsqpr01qm7dc81fvgd6ilsqpr01qm7dc81fvgd6ilsqpr01qm7dc81g00"
 
 # 1. ENGINE & CONFIG
 st.set_page_config(page_title="ICT Strategic Terminal", layout="wide")
@@ -23,51 +23,53 @@ def get_live_news():
     except:
         return []
 
-# 3. HYBRID YIELD ENGINE (FINNHUB + FRED)
+# 3. FRED HISTORY ENGINE (NEW FOR TAB 4)
+def get_fred_history(series_id):
+    try:
+        url = f"https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key={FRED_API_KEY}&file_type=json&sort_order=desc&limit=90"
+        data = requests.get(url).json()
+        df = pd.DataFrame(data['observations'])
+        df['date'] = pd.to_datetime(df['date'])
+        df['value'] = pd.to_numeric(df['value'], errors='coerce')
+        return df.set_index('date')['value']
+    except:
+        return pd.Series()
+
+# 4. HYBRID YIELD ENGINE (FINNHUB + FRED)
 def get_yield_details(pair_name="AUD/USD"):
-    # Mapping for G10 Yields
     fred_map = {
         "AUD/USD": "IRLTLT01AUM156N", "NZD/USD": "IRLTLT01NZM156N",
         "USD/JPY": "IRLTLT01JPM156N", "GBP/USD": "IRLTLT01GBM156N",
         "EUR/USD": "IRLTLT01DEM156N", "USD/CAD": "IRLTLT01CAM156N",
         "GBP/JPY": "IRLTLT01GBM156N", "EUR/JPY": "IRLTLT01DEM156N"
     }
-    
-    # Finnhub Symbols (using 10Y US Treasury baseline for comparison)
     fh_map = {
         "AUD/USD": "AU10Y", "NZD/USD": "NZ10Y", "USD/JPY": "JP10Y", 
         "GBP/USD": "UK10Y", "EUR/USD": "DE10Y", "USD/CAD": "CA10Y"
     }
 
     try:
-        # 1. US 10Y Baseline (Live via yFinance)
         us10 = yf.Ticker("^TNX").history(period="1d")['Close'].iloc[-1]
-        
-        # 2. Attempt Finnhub (Intraday Satellite)
         target_fh = fh_map.get(pair_name, "AU10Y")
         fh_url = f"https://finnhub.io/api/v1/quote?symbol={target_fh}&token={FINNHUB_API_KEY}"
         fh_res = requests.get(fh_url).json()
         
-        # Finnhub 'c' is current price. If it exists and isn't 0, we use it.
         if fh_res.get('c'):
             current_f = float(fh_res['c'])
             source_tag = "Finnhub Live"
         else:
-            # 3. Base Command (FRED Backup)
             series_id = fred_map.get(pair_name, "IRLTLT01AUM156N")
             fred_url = f"https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key={FRED_API_KEY}&file_type=json&sort_order=desc&limit=1"
             fred_res = requests.get(fred_url).json()
             current_f = float(fred_res['observations'][0]['value'])
             source_tag = "FRED Anchor"
 
-        # Calculate Trend (Using yFinance history for the trend slope)
         y_ticker = yf.Ticker(f"^{fh_map.get(pair_name, 'AU10Y')}")
         f_hist = y_ticker.history(period="5d")
         avg_f = f_hist['Close'].mean() if not f_hist.empty else current_f
         diff = current_f - avg_f
         trend = "📈 FIRM INCREASE" if diff > 0.10 else "📉 FIRM DECREASE" if diff < -0.10 else "⚖️ STABLE"
 
-        # FRONT-RUN VELOCITY
         pair_ticker = pair_name.replace("/", "") + "=X"
         p_data = yf.Ticker(pair_ticker).history(period="1d", interval="15m")
         div_status = "✅ CONVERGENT"
@@ -76,7 +78,6 @@ def get_yield_details(pair_name="AUD/USD"):
             price_change = p_data['Close'].iloc[-1] - p_data['Close'].iloc[-2]
             multiplier = 100 if "JPY" in pair_name else 10000
             pip_velocity = abs(price_change * multiplier)
-            
             if pip_velocity >= 15 and trend == "⚖️ STABLE":
                 div_status = "⚠️ FRONT-RUN: BUY" if current_f > us10 else "⚠️ FRONT-RUN: SELL"
 
@@ -85,7 +86,7 @@ def get_yield_details(pair_name="AUD/USD"):
     except:
         return 0.001, "⚖️ STABLE", "NORMAL", 4.15, "Circuit Breaker"
 
-# 4. ICT PROBABILITY ENGINE
+# 5. ICT PROBABILITY ENGINE
 def calculate_ict_probability(ticker, range_min, range_max):
     try:
         data = yf.Ticker(ticker).history(period="5d")
@@ -102,7 +103,7 @@ def calculate_ict_probability(ticker, range_min, range_max):
         return score, r_pips, status, ratio, prev, last
     except: return 0, 0, "ERR", 0, None, None
 
-# 5. MASTER DATA (STRICTLY PRESERVED)
+# 6. MASTER DATA
 market_logic = {
     "EURUSD=X": {"name": "EUR/USD", "story": "The Euro/Bund Story", "min": 65, "max": 85, "bank": "ECB", "sentiment": "Neutral", "deep": "ECB on hold until Dec. German stimulus is the floor.", "bond": "Bund 10Y vs US 10Y", "news": "Tue: Eurozone CPI.", "target": "🏹 Target: 1.1680 (Sell-side Liquidity)"},
     "JPY=X": {"name": "USD/JPY", "story": "The Carry Flip", "min": 105, "max": 140, "bank": "BoJ", "sentiment": "Hawkish-Lean", "deep": "BoJ eyes April rate hike. Watch for intervention at 157.00.", "bond": "JGB 10Y vs US 10Y", "news": "Tue: BoJ Gov Ueda Speech.", "target": "🏹 Target: 153.20 (Discount OTE)"},
@@ -114,7 +115,7 @@ market_logic = {
     "USDCAD=X": {"name": "USD/CAD", "story": "Loonie Tariff Watch", "min": 75, "max": 100, "bank": "BoC", "sentiment": "Cautious", "deep": "CAD underperforming on global tariff concerns.", "bond": "CA 10Y vs US 10Y", "news": "Wed: Canada GDP.", "target": "🏹 Target: 1.3930"}
 }
 
-# 6. SIDEBAR
+# 7. SIDEBAR
 st.sidebar.title("🏛 Global News & Bank Sentiment")
 news_feed = get_live_news()
 for entry in news_feed:
@@ -122,7 +123,7 @@ for entry in news_feed:
         st.write(f"**{entry.title}**")
         st.markdown(f"[Source Article]({entry.link})")
 
-# 7. MAIN UI TOP METRICS
+# 8. MAIN UI TOP METRICS
 st.title("📊 ICT Multi-Pair Intelligence Terminal")
 y_col1, y_col2, y_col3 = st.columns(3)
 with y_col1:
@@ -138,8 +139,8 @@ with y_col3:
 
 st.divider()
 
-# 8. THE TABS
-tab1, tab2, tab3 = st.tabs(["🖥 Detailed Market Grid", "🥩 Executive Summary", "📅 Daily Closing Intelligence"])
+# 9. THE TABS
+tab1, tab2, tab3, tab4 = st.tabs(["🖥 Market Grid", "🥩 Summary", "📅 Intelligence", "📈 Yield Charts"])
 
 with tab1:
     cols = st.columns(3)
@@ -154,15 +155,11 @@ with tab1:
                 st.markdown(f"**ICT Conviction: :{color}[{score}% ({status})]**")
                 st.progress(score / 100)
                 spread, yield_trend, divergence, _, src_tag = get_yield_details(info['name'])
-                with st.expander("🔍 Strategic & News Analysis", expanded=True):
+                with st.expander("🔍 Strategic Analysis", expanded=True):
                     st.markdown(f"**Market Sentiment:** {info['deep']}")
                     st.markdown(f"**Yield Trend:** `{yield_trend}`") 
-                    if "FRONT-RUN" in divergence: st.warning(f"⚡ {divergence}")
-                    elif "BUY" in divergence: st.success(f"🚀 {divergence}")
-                    elif "SELL" in divergence: st.error(f"🩸 {divergence}")
-                    else: st.markdown(f"**Divergence Status:** `{divergence}`")
+                    st.markdown(f"**Status:** `{divergence}`")
                     st.markdown(f"**Bond Context:** {info['bond']} | **Spread: {spread:.3f}% ({src_tag})**")
-                    st.markdown(f"**High Impact News:** {info['news']}")
                     st.info(info['target'])
             except: st.error(f"Stream Down: {info['name']}")
 
@@ -172,10 +169,7 @@ with tab2:
     for ticker, info in market_logic.items():
         score, _, status, ratio, _, _ = calculate_ict_probability(ticker, info['min'], info['max'])
         spread, yield_trend, divergence, _, src_tag = get_yield_details(info['name'])
-        summary_list.append({
-            "Pair": info['name'], "Conviction": f"{score}% ({status})", "Yield Trend": yield_trend,
-            "Signal": divergence, "Spread": f"{spread:.3f}% ({src_tag})", "Body/Range": f"{ratio*100:.1f}%", "Target": info['target']
-        })
+        summary_list.append({"Pair": info['name'], "Conviction": f"{score}% ({status})", "Yield Trend": yield_trend, "Signal": divergence, "Spread": f"{spread:.3f}% ({src_tag})", "Target": info['target']})
     st.dataframe(pd.DataFrame(summary_list), use_container_width=True, hide_index=True)
 
 with tab3:
@@ -186,11 +180,28 @@ with tab3:
         dir_text = "downside" if last['Close'] < last['Open'] else "upside"
         move_pips = abs(last['Close'] - last['Open']) * (100 if "JPY" in ticker else 10000)
         st.subheader(f"{info['name']} ({info['story']})")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown(f"**Yesterday:** Price closed with {'heavy' if ratio > 0.55 else 'choppy'} displacement to the {dir_text} ({move_pips:.1f} pips). Yields on the US 10Y are at {us_yield:.2f}% impacting the {info['name']} narrative.")
-            st.markdown(f"**Today's Look:** {'Watch for a Judas Swing fake pump' if ratio > 0.55 else 'Expect tight consolidation'} above/below the Midnight Open. The 'Magnet' is pulling price toward the {info['target'].split(': ')[-1]}.")
-        with c2:
-            st.success(f"**Sweet Spot:** {info['target'].split(' ')[-1].split(' (')[0]}")
-            st.warning(f"**Recommendation:** {'Sell on a retest' if dir_text == 'downside' else 'Buy on a retest'} if SMT Divergence is present with correlated pairs.")
+        st.markdown(f"**Yesterday:** Price closed with displacement to the {dir_text} ({move_pips:.1f} pips). US 10Y is at {us_yield:.2f}%.")
         st.divider()
+
+with tab4:
+    st.header("📈 FRED Anchor: Institutional Yield Trends")
+    st.write("Visualizing the last 90 days of government bond performance. Use this to identify long-term SMT Divergence.")
+    
+    # Chart Selection Logic
+    c_choice = st.selectbox("Select Bond Yield to Visualize", ["US 10Y (Benchmark)", "Australia 10Y", "New Zealand 10Y", "Japan 10Y", "UK 10Y", "Germany 10Y", "Canada 10Y"])
+    
+    fred_id_map = {
+        "US 10Y (Benchmark)": "DGS10", "Australia 10Y": "IRLTLT01AUM156N", 
+        "New Zealand 10Y": "IRLTLT01NZM156N", "Japan 10Y": "IRLTLT01JPM156N", 
+        "UK 10Y": "IRLTLT01GBM156N", "Germany 10Y": "IRLTLT01DEM156N", 
+        "Canada 10Y": "IRLTLT01CAM156N"
+    }
+    
+    selected_id = fred_id_map[c_choice]
+    with st.spinner(f"Fetching 90-day history for {c_choice}..."):
+        history = get_fred_history(selected_id)
+        if not history.empty:
+            st.line_chart(history)
+            st.caption(f"Data provided by Federal Reserve Economic Data (FRED). ID: {selected_id}")
+        else:
+            st.error("Failed to retrieve FRED history. Please check your API key or connection.")
