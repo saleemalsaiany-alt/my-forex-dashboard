@@ -22,42 +22,53 @@ def get_live_news():
     except:
         return []
 
-# 3. UPDATED YIELD ENGINE (yFinance for Daily G10)
+# 3. FRED HISTORY ENGINE (FOR TAB 4)
+def get_fred_history(series_id):
+    try:
+        url = f"https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key={FRED_API_KEY}&file_type=json&sort_order=desc&limit=90"
+        data = requests.get(url).json()
+        df = pd.DataFrame(data['observations'])
+        df['date'] = pd.to_datetime(df['date'])
+        df['value'] = pd.to_numeric(df['value'], errors='coerce')
+        return df.set_index('date')['value']
+    except:
+        return pd.Series()
+
+# 4. EXCLUSIVE FRED YIELD ENGINE
 def get_yield_details(pair_name="AUD/USD"):
-    # yFinance Daily Tickers for G10 10Y Bonds
-    yf_bond_map = {
-        "AUD/USD": "^AU10Y", "NZD/USD": "^NZ10Y", "USD/JPY": "^GJGB10", 
-        "GBP/USD": "^GUKG10", "EUR/USD": "^GDBR10", "USD/CAD": "^GCAN10",
-        "GBP/JPY": "^GUKG10", "EUR/JPY": "^GDBR10"
+    # FRED Series IDs for 10Y yields
+    fred_map = {
+        "AUD/USD": "IRLTLT01AUM156N", "NZD/USD": "IRLTLT01NZM156N",
+        "USD/JPY": "IRLTLT01JPM156N", "GBP/USD": "IRLTLT01GBM156N",
+        "EUR/USD": "IRLTLT01DEM156N", "USD/CAD": "IRLTLT01CAM156N",
+        "GBP/JPY": "IRLTLT01GBM156N", "EUR/JPY": "IRLTLT01DEM156N"
     }
     
-    # FRED ID for US 10Y Benchmark (Still Official)
+    # FRED ID for US 10Y Benchmark
     US_10Y_ID = "DGS10"
 
     try:
-        # 1. US 10Y Baseline (Official FRED)
+        # 1. Fetch US 10Y from FRED
         us_url = f"https://api.stlouisfed.org/fred/series/observations?series_id={US_10Y_ID}&api_key={FRED_API_KEY}&file_type=json&sort_order=desc&limit=1"
         us_res = requests.get(us_url).json()
         us10 = float(us_res['observations'][0]['value'])
         
-        # 2. Foreign 10Y (Live Daily via yFinance)
-        ticker_sym = yf_bond_map.get(pair_name, "^AU10Y")
-        f_ticker = yf.Ticker(ticker_sym)
-        f_data = f_ticker.history(period="5d")
+        # 2. Fetch Foreign 10Y from FRED
+        series_id = fred_map.get(pair_name, "IRLTLT01AUM156N")
+        fred_url = f"https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key={FRED_API_KEY}&file_type=json&sort_order=desc&limit=5"
+        fred_res = requests.get(fred_url).json()
         
-        if not f_data.empty:
-            current_f = f_data['Close'].iloc[-1]
-            avg_f = f_data['Close'].mean()
-            source_tag = "yFinance Daily"
-        else:
-            current_f = us10 # Simple backup
-            avg_f = us10
-            source_tag = "Fallback"
+        observations = fred_res['observations']
+        current_f = float(observations[0]['value'])
+        source_tag = "FRED Official"
 
+        # Calculate Trend using FRED historical observations
+        vals = [float(obs['value']) for obs in observations if obs['value'] != "."]
+        avg_f = sum(vals) / len(vals) if vals else current_f
         diff = current_f - avg_f
-        trend = "📈 FIRM INCREASE" if diff > 0.05 else "📉 FIRM DECREASE" if diff < -0.05 else "⚖️ STABLE"
+        trend = "📈 FIRM INCREASE" if diff > 0.10 else "📉 FIRM DECREASE" if diff < -0.10 else "⚖️ STABLE"
 
-        # FRONT-RUN VELOCITY
+        # FRONT-RUN VELOCITY (Still uses yFinance for Pair Price only)
         pair_ticker = pair_name.replace("/", "") + "=X"
         p_data = yf.Ticker(pair_ticker).history(period="1d", interval="15m")
         div_status = "✅ CONVERGENT"
@@ -72,9 +83,9 @@ def get_yield_details(pair_name="AUD/USD"):
         spread = current_f - us10
         return spread, trend, div_status, us10, source_tag
     except:
-        return 0.001, "⚖️ STABLE", "NORMAL", 4.15, "API Lag"
+        return 0.001, "⚖️ STABLE", "NORMAL", 4.15, "FRED Offline"
 
-# 4. ICT PROBABILITY ENGINE (STRICTLY PRESERVED)
+# 5. ICT PROBABILITY ENGINE (STRICTLY PRESERVED)
 def calculate_ict_probability(ticker, range_min, range_max):
     try:
         data = yf.Ticker(ticker).history(period="5d")
@@ -91,7 +102,7 @@ def calculate_ict_probability(ticker, range_min, range_max):
         return score, r_pips, status, ratio, prev, last
     except: return 0, 0, "ERR", 0, None, None
 
-# 5. MASTER DATA (STRICTLY PRESERVED)
+# 6. MASTER DATA (STRICTLY PRESERVED)
 market_logic = {
     "EURUSD=X": {"name": "EUR/USD", "story": "The Euro/Bund Story", "min": 65, "max": 85, "bank": "ECB", "sentiment": "Neutral", "deep": "ECB on hold until Dec. German stimulus is the floor.", "bond": "Bund 10Y vs US 10Y", "news": "Tue: Eurozone CPI.", "target": "🏹 Target: 1.1680 (Sell-side Liquidity)"},
     "JPY=X": {"name": "USD/JPY", "story": "The Carry Flip", "min": 105, "max": 140, "bank": "BoJ", "sentiment": "Hawkish-Lean", "deep": "BoJ eyes April rate hike. Watch for intervention at 157.00.", "bond": "JGB 10Y vs US 10Y", "news": "Tue: BoJ Gov Ueda Speech.", "target": "🏹 Target: 153.20 (Discount OTE)"},
@@ -103,7 +114,7 @@ market_logic = {
     "USDCAD=X": {"name": "USD/CAD", "story": "Loonie Tariff Watch", "min": 75, "max": 100, "bank": "BoC", "sentiment": "Cautious", "deep": "CAD underperforming on global tariff concerns.", "bond": "CA 10Y vs US 10Y", "news": "Wed: Canada GDP.", "target": "🏹 Target: 1.3930"}
 }
 
-# 6. SIDEBAR
+# 7. SIDEBAR
 st.sidebar.title("🏛 Global News & Bank Sentiment")
 news_feed = get_live_news()
 for entry in news_feed:
@@ -111,7 +122,7 @@ for entry in news_feed:
         st.write(f"**{entry.title}**")
         st.markdown(f"[Source Article]({entry.link})")
 
-# 7. MAIN UI TOP METRICS
+# 8. MAIN UI TOP METRICS
 st.title("📊 ICT Multi-Pair Intelligence Terminal")
 y_col1, y_col2, y_col3 = st.columns(3)
 with y_col1:
@@ -121,12 +132,12 @@ with y_col2:
     sp_nz, _, _, _, src_nz = get_yield_details("NZD/USD")
     st.metric("NZ-US 10Y Spread", f"{sp_nz:.3f}%", f"Source: {src_nz}", delta_color="off")
 with y_col3:
-    _, _, _, us_val, _ = get_yield_details("EUR/USD") # Pulled from FRED
-    st.metric("US 10Y Yield", f"{us_val:.3f}%", "Source: FRED")
+    _, _, _, us_val, _ = get_yield_details("EUR/USD") # Pull US 10Y from FRED
+    st.metric("US 10Y Yield", f"{us_val:.3f}%", "Source: FRED Official")
 
 st.divider()
 
-# 8. THE TABS
+# 9. THE TABS
 tab1, tab2, tab3, tab4 = st.tabs(["🖥 Market Grid", "🥩 Summary", "📅 Intelligence", "📈 Yield Charts"])
 
 with tab1:
@@ -162,4 +173,32 @@ with tab2:
 with tab3:
     st.header(f"📅 Daily Closing Intelligence")
     for ticker, info in market_logic.items():
-        score, pips, _, ratio,
+        score, pips, _, ratio, prev, last = calculate_ict_probability(ticker, info['min'], info['max'])
+        spread, trend, div, us_yield, _ = get_yield_details(info['name'])
+        dir_text = "downside" if last['Close'] < last['Open'] else "upside"
+        move_pips = abs(last['Close'] - last['Open']) * (100 if "JPY" in ticker else 10000)
+        st.subheader(f"{info['name']} ({info['story']})")
+        st.markdown(f"**Yesterday:** Price closed with displacement to the {dir_text} ({move_pips:.1f} pips). US 10Y is at {us_yield:.2f}%.")
+        st.divider()
+
+with tab4:
+    st.header("📈 FRED Anchor: Institutional Yield Trends")
+    st.write("Visualizing the last 90 days of government bond performance. Use this to identify long-term SMT Divergence.")
+    
+    c_choice = st.selectbox("Select Bond Yield to Visualize", ["US 10Y (Benchmark)", "Australia 10Y", "New Zealand 10Y", "Japan 10Y", "UK 10Y", "Germany 10Y", "Canada 10Y"])
+    
+    fred_id_map = {
+        "US 10Y (Benchmark)": "DGS10", "Australia 10Y": "IRLTLT01AUM156N", 
+        "New Zealand 10Y": "IRLTLT01NZM156N", "Japan 10Y": "IRLTLT01JPM156N", 
+        "UK 10Y": "IRLTLT01GBM156N", "Germany 10Y": "IRLTLT01DEM156N", 
+        "Canada 10Y": "IRLTLT01CAM156N"
+    }
+    
+    selected_id = fred_id_map[c_choice]
+    with st.spinner(f"Fetching 90-day history for {c_choice}..."):
+        history = get_fred_history(selected_id)
+        if not history.empty:
+            st.line_chart(history)
+            st.caption(f"Data provided by Federal Reserve Economic Data (FRED). ID: {selected_id}")
+        else:
+            st.error("Failed to retrieve FRED history. Please check your API key or connection.")
