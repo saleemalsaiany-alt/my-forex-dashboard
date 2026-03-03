@@ -8,7 +8,6 @@ from datetime import datetime
 
 # --- API CONFIG ---
 FRED_API_KEY = "ffc7165283883a234b7d4350877d4ab3"
-FINNHUB_API_KEY = "d6ilsqpr01qm7dc81fvgd6ilsqpr01qm7dc81fvgd6ilsqpr01qm7dc81g00"
 
 # 1. ENGINE & CONFIG
 st.set_page_config(page_title="ICT Strategic Terminal", layout="wide")
@@ -23,7 +22,7 @@ def get_live_news():
     except:
         return []
 
-# 3. FRED HISTORY ENGINE (NEW FOR TAB 4)
+# 3. FRED HISTORY ENGINE (FOR TAB 4)
 def get_fred_history(series_id):
     try:
         url = f"https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key={FRED_API_KEY}&file_type=json&sort_order=desc&limit=90"
@@ -35,41 +34,41 @@ def get_fred_history(series_id):
     except:
         return pd.Series()
 
-# 4. HYBRID YIELD ENGINE (FINNHUB + FRED)
+# 4. EXCLUSIVE FRED YIELD ENGINE
 def get_yield_details(pair_name="AUD/USD"):
+    # FRED Series IDs for 10Y yields
     fred_map = {
         "AUD/USD": "IRLTLT01AUM156N", "NZD/USD": "IRLTLT01NZM156N",
         "USD/JPY": "IRLTLT01JPM156N", "GBP/USD": "IRLTLT01GBM156N",
         "EUR/USD": "IRLTLT01DEM156N", "USD/CAD": "IRLTLT01CAM156N",
         "GBP/JPY": "IRLTLT01GBM156N", "EUR/JPY": "IRLTLT01DEM156N"
     }
-    fh_map = {
-        "AUD/USD": "AU10Y", "NZD/USD": "NZ10Y", "USD/JPY": "JP10Y", 
-        "GBP/USD": "UK10Y", "EUR/USD": "DE10Y", "USD/CAD": "CA10Y"
-    }
+    
+    # FRED ID for US 10Y Benchmark
+    US_10Y_ID = "DGS10"
 
     try:
-        us10 = yf.Ticker("^TNX").history(period="1d")['Close'].iloc[-1]
-        target_fh = fh_map.get(pair_name, "AU10Y")
-        fh_url = f"https://finnhub.io/api/v1/quote?symbol={target_fh}&token={FINNHUB_API_KEY}"
-        fh_res = requests.get(fh_url).json()
+        # 1. Fetch US 10Y from FRED
+        us_url = f"https://api.stlouisfed.org/fred/series/observations?series_id={US_10Y_ID}&api_key={FRED_API_KEY}&file_type=json&sort_order=desc&limit=1"
+        us_res = requests.get(us_url).json()
+        us10 = float(us_res['observations'][0]['value'])
         
-        if fh_res.get('c'):
-            current_f = float(fh_res['c'])
-            source_tag = "Finnhub Live"
-        else:
-            series_id = fred_map.get(pair_name, "IRLTLT01AUM156N")
-            fred_url = f"https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key={FRED_API_KEY}&file_type=json&sort_order=desc&limit=1"
-            fred_res = requests.get(fred_url).json()
-            current_f = float(fred_res['observations'][0]['value'])
-            source_tag = "FRED Anchor"
+        # 2. Fetch Foreign 10Y from FRED
+        series_id = fred_map.get(pair_name, "IRLTLT01AUM156N")
+        fred_url = f"https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key={FRED_API_KEY}&file_type=json&sort_order=desc&limit=5"
+        fred_res = requests.get(fred_url).json()
+        
+        observations = fred_res['observations']
+        current_f = float(observations[0]['value'])
+        source_tag = "FRED Official"
 
-        y_ticker = yf.Ticker(f"^{fh_map.get(pair_name, 'AU10Y')}")
-        f_hist = y_ticker.history(period="5d")
-        avg_f = f_hist['Close'].mean() if not f_hist.empty else current_f
+        # Calculate Trend using FRED historical observations
+        vals = [float(obs['value']) for obs in observations if obs['value'] != "."]
+        avg_f = sum(vals) / len(vals) if vals else current_f
         diff = current_f - avg_f
         trend = "📈 FIRM INCREASE" if diff > 0.10 else "📉 FIRM DECREASE" if diff < -0.10 else "⚖️ STABLE"
 
+        # FRONT-RUN VELOCITY (Still uses yFinance for Pair Price only)
         pair_ticker = pair_name.replace("/", "") + "=X"
         p_data = yf.Ticker(pair_ticker).history(period="1d", interval="15m")
         div_status = "✅ CONVERGENT"
@@ -84,9 +83,9 @@ def get_yield_details(pair_name="AUD/USD"):
         spread = current_f - us10
         return spread, trend, div_status, us10, source_tag
     except:
-        return 0.001, "⚖️ STABLE", "NORMAL", 4.15, "Circuit Breaker"
+        return 0.001, "⚖️ STABLE", "NORMAL", 4.15, "FRED Offline"
 
-# 5. ICT PROBABILITY ENGINE
+# 5. ICT PROBABILITY ENGINE (STRICTLY PRESERVED)
 def calculate_ict_probability(ticker, range_min, range_max):
     try:
         data = yf.Ticker(ticker).history(period="5d")
@@ -103,7 +102,7 @@ def calculate_ict_probability(ticker, range_min, range_max):
         return score, r_pips, status, ratio, prev, last
     except: return 0, 0, "ERR", 0, None, None
 
-# 6. MASTER DATA
+# 6. MASTER DATA (STRICTLY PRESERVED)
 market_logic = {
     "EURUSD=X": {"name": "EUR/USD", "story": "The Euro/Bund Story", "min": 65, "max": 85, "bank": "ECB", "sentiment": "Neutral", "deep": "ECB on hold until Dec. German stimulus is the floor.", "bond": "Bund 10Y vs US 10Y", "news": "Tue: Eurozone CPI.", "target": "🏹 Target: 1.1680 (Sell-side Liquidity)"},
     "JPY=X": {"name": "USD/JPY", "story": "The Carry Flip", "min": 105, "max": 140, "bank": "BoJ", "sentiment": "Hawkish-Lean", "deep": "BoJ eyes April rate hike. Watch for intervention at 157.00.", "bond": "JGB 10Y vs US 10Y", "news": "Tue: BoJ Gov Ueda Speech.", "target": "🏹 Target: 153.20 (Discount OTE)"},
@@ -133,9 +132,8 @@ with y_col2:
     sp_nz, _, _, _, src_nz = get_yield_details("NZD/USD")
     st.metric("NZ-US 10Y Spread", f"{sp_nz:.3f}%", f"Source: {src_nz}", delta_color="off")
 with y_col3:
-    try: us_val = yf.Ticker("^TNX").history(period="1d")['Close'].iloc[-1]
-    except: us_val = 4.15
-    st.metric("US 10Y Yield", f"{us_val:.3f}%")
+    _, _, _, us_val, _ = get_yield_details("EUR/USD") # Just pull US 10Y from FRED
+    st.metric("US 10Y Yield", f"{us_val:.3f}%", "Source: FRED Official")
 
 st.divider()
 
@@ -187,7 +185,6 @@ with tab4:
     st.header("📈 FRED Anchor: Institutional Yield Trends")
     st.write("Visualizing the last 90 days of government bond performance. Use this to identify long-term SMT Divergence.")
     
-    # Chart Selection Logic
     c_choice = st.selectbox("Select Bond Yield to Visualize", ["US 10Y (Benchmark)", "Australia 10Y", "New Zealand 10Y", "Japan 10Y", "UK 10Y", "Germany 10Y", "Canada 10Y"])
     
     fred_id_map = {
