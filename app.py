@@ -132,7 +132,7 @@ with y_col2:
     sp_nz, _, _, _, src_nz = get_yield_details("NZD/USD")
     st.metric("NZ-US 10Y Spread", f"{sp_nz:.3f}%", f"Source: {src_nz}", delta_color="off")
 with y_col3:
-    _, _, _, us_val, _ = get_yield_details("EUR/USD") # Pull US 10Y from FRED
+    _, _, _, us_val, _ = get_yield_details("EUR/USD") # Just pull US 10Y from FRED
     st.metric("US 10Y Yield", f"{us_val:.3f}%", "Source: FRED Official")
 
 st.divider()
