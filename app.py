@@ -36,50 +36,36 @@ def get_fred_history(series_id):
 
 # 4. EXCLUSIVE FRED YIELD ENGINE
 def get_yield_details(pair_name="AUD/USD"):
-    # FRED Series IDs for 10Y yields
     fred_map = {
         "AUD/USD": "IRLTLT01AUM156N", "NZD/USD": "IRLTLT01NZM156N",
         "USD/JPY": "IRLTLT01JPM156N", "GBP/USD": "IRLTLT01GBM156N",
         "EUR/USD": "IRLTLT01DEM156N", "USD/CAD": "IRLTLT01CAM156N",
         "GBP/JPY": "IRLTLT01GBM156N", "EUR/JPY": "IRLTLT01DEM156N"
     }
-    
-    # FRED ID for US 10Y Benchmark
     US_10Y_ID = "DGS10"
-
     try:
-        # 1. Fetch US 10Y from FRED
         us_url = f"https://api.stlouisfed.org/fred/series/observations?series_id={US_10Y_ID}&api_key={FRED_API_KEY}&file_type=json&sort_order=desc&limit=1"
         us_res = requests.get(us_url).json()
         us10 = float(us_res['observations'][0]['value'])
-        
-        # 2. Fetch Foreign 10Y from FRED
         series_id = fred_map.get(pair_name, "IRLTLT01AUM156N")
         fred_url = f"https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key={FRED_API_KEY}&file_type=json&sort_order=desc&limit=5"
         fred_res = requests.get(fred_url).json()
-        
         observations = fred_res['observations']
         current_f = float(observations[0]['value'])
         source_tag = "FRED Official"
-
-        # Calculate Trend using FRED historical observations
         vals = [float(obs['value']) for obs in observations if obs['value'] != "."]
         avg_f = sum(vals) / len(vals) if vals else current_f
         diff = current_f - avg_f
         trend = "📈 FIRM INCREASE" if diff > 0.10 else "📉 FIRM DECREASE" if diff < -0.10 else "⚖️ STABLE"
-
-        # FRONT-RUN VELOCITY (Still uses yFinance for Pair Price only)
         pair_ticker = pair_name.replace("/", "") + "=X"
         p_data = yf.Ticker(pair_ticker).history(period="1d", interval="15m")
         div_status = "✅ CONVERGENT"
-        
         if len(p_data) > 1:
             price_change = p_data['Close'].iloc[-1] - p_data['Close'].iloc[-2]
             multiplier = 100 if "JPY" in pair_name else 10000
             pip_velocity = abs(price_change * multiplier)
             if pip_velocity >= 15 and trend == "⚖️ STABLE":
                 div_status = "⚠️ FRONT-RUN: BUY" if current_f > us10 else "⚠️ FRONT-RUN: SELL"
-
         spread = current_f - us10
         return spread, trend, div_status, us10, source_tag
     except:
@@ -137,8 +123,8 @@ with y_col3:
 
 st.divider()
 
-# 9. THE TABS
-tab1, tab2, tab3, tab4 = st.tabs(["🖥 Market Grid", "🥩 Summary", "📅 Intelligence", "📈 Yield Charts"])
+# 9. THE TABS (Added Tab 5)
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["🖥 Market Grid", "🥩 Summary", "📅 Intelligence", "📈 Yield Charts", "🏛 Bond Futures Lead"])
 
 with tab1:
     cols = st.columns(3)
@@ -184,16 +170,13 @@ with tab3:
 with tab4:
     st.header("📈 FRED Anchor: Institutional Yield Trends")
     st.write("Visualizing the last 90 days of government bond performance. Use this to identify long-term SMT Divergence.")
-    
     c_choice = st.selectbox("Select Bond Yield to Visualize", ["US 10Y (Benchmark)", "Australia 10Y", "New Zealand 10Y", "Japan 10Y", "UK 10Y", "Germany 10Y", "Canada 10Y"])
-    
     fred_id_map = {
         "US 10Y (Benchmark)": "DGS10", "Australia 10Y": "IRLTLT01AUM156N", 
         "New Zealand 10Y": "IRLTLT01NZM156N", "Japan 10Y": "IRLTLT01JPM156N", 
         "UK 10Y": "IRLTLT01GBM156N", "Germany 10Y": "IRLTLT01DEM156N", 
         "Canada 10Y": "IRLTLT01CAM156N"
     }
-    
     selected_id = fred_id_map[c_choice]
     with st.spinner(f"Fetching 90-day history for {c_choice}..."):
         history = get_fred_history(selected_id)
@@ -202,3 +185,42 @@ with tab4:
             st.caption(f"Data provided by Federal Reserve Economic Data (FRED). ID: {selected_id}")
         else:
             st.error("Failed to retrieve FRED history. Please check your API key or connection.")
+
+# --- NEW TAB 5: BOND FUTURES LEAD ---
+with tab5:
+    st.header("🏛 Bond Futures Lead: Institutional SMT Engine")
+    st.write("yFinance Native Charts: High-reliability monitoring of ZB (30Y), ZN (10Y), and ZF (5Y) vs DXY.")
+    
+    # 5-Minute Intraday Data for ICT Precision
+    futures_map = {
+        "ZB (30Y Bond)": "ZB=F",
+        "ZN (10Y Note)": "ZN=F",
+        "ZF (5Y Note)": "ZF=F",
+        "US Dollar Index (DXY)": "DX-Y.NYB"
+    }
+    
+    f_col1, f_col2 = st.columns(2)
+    
+    with f_col1:
+        for title, symbol in list(futures_map.items())[:2]:
+            try:
+                data = yf.Ticker(symbol).history(period="3d", interval="5m")
+                if not data.empty:
+                    st.subheader(title)
+                    st.line_chart(data['Close'], use_container_width=True)
+                    st.caption(f"Real-time 5m data for {symbol}")
+            except:
+                st.error(f"Error loading {title}")
+                
+    with f_col2:
+        for title, symbol in list(futures_map.items())[2:]:
+            try:
+                data = yf.Ticker(symbol).history(period="3d", interval="5m")
+                if not data.empty:
+                    st.subheader(title)
+                    st.line_chart(data['Close'], use_container_width=True)
+                    st.caption(f"Real-time 5m data for {symbol}")
+            except:
+                st.error(f"Error loading {title}")
+
+    st.success("📊 **Reliability Note**: Using yFinance native data bypasses third-party widget restrictions. Charts are 100% focused on US Treasuries.")
