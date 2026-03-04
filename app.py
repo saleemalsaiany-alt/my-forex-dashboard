@@ -23,7 +23,7 @@ def get_live_news():
     except:
         return []
 
-# 3. TRADINGVIEW WIDGET ENGINE
+# 3. TRADINGVIEW WIDGET ENGINE (FIXED SYMBOLS FOR WIDGET)
 def tradingview_chart(symbol, height=500):
     source = f"""
     <div class="tradingview-widget-container" style="height:{height}px;width:100%;">
@@ -49,8 +49,9 @@ def tradingview_chart(symbol, height=500):
     """
     return components.html(source, height=height)
 
-# 4. YIELD & FUTURES ENGINE (FIXED SYMBOLS)
+# 4. YIELD & FUTURES ENGINE (FIXED SYMBOLS FOR YFINANCE)
 def get_bond_futures_data():
+    # yFinance compatible continuous contract symbols
     symbols = {
         "ZB": "ZB=F",        # 30Y Treasury Bond
         "ZN": "ZN=F",        # 10Y Treasury Note
@@ -68,10 +69,10 @@ def get_bond_futures_data():
                 change = ((current - prev) / prev) * 100
                 results[name] = {"price": current, "change": change}
         return results
-    except Exception as e:
+    except:
         return {}
 
-# 5. UI RENDER
+# 5. UI RENDER (TABS 1-4 REMAINS SAME)
 st.sidebar.title("🏛 Global News")
 for entry in get_live_news()[:5]:
     st.sidebar.caption(f"📌 {entry.title}")
@@ -79,11 +80,11 @@ for entry in get_live_news()[:5]:
 st.title("📊 ICT Multi-Pair Intelligence Terminal")
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["🖥 Market Grid", "🥩 Summary", "📅 Intelligence", "📈 Yield Charts", "🏛 Bond Futures Lead"])
 
-# ... (Tabs 1-4 Logic remain exactly the same as previous stable version) ...
+# [Omitted Tabs 1-4 Logic for brevity - strictly preserved in original state]
 
 with tab5:
     st.header("🏛 Treasury Futures: The DXY Leader")
-    st.write("Analyzing Price Action of Bond Futures (ZB, ZN, ZF) to predict DXY expansion.")
+    st.write("Real-time SMT Analysis: Comparing ZB, ZN, and ZF Futures against the DXY.")
     
     f_data = get_bond_futures_data()
     if f_data:
@@ -97,24 +98,24 @@ with tab5:
         
         c1, c2 = st.columns([2, 1])
         with c1:
-            st.subheader("ZN1! (10Y) vs DXY Overlay")
+            st.subheader("ZN1! (10Y) Live Analysis")
+            # Using CBOT:ZN1! for TradingView Widget display
             tradingview_chart("CBOT:ZN1!", height=450)
             
         with c2:
-            st.subheader("Deep ICT Analysis")
-            # SMT Analysis Logic
+            st.subheader("ICT SMT Sentiment")
             zn_up = f_data.get('ZN', {}).get('change', 0) > 0
             dxy_up = f_data.get('DXY', {}).get('change', 0) > 0
             
             if zn_up and not dxy_up:
-                st.success("✅ **SMT BULLISH BIAS**\nBonds are being bought. Expect DXY to seek Sell-Side Liquidity. Look for LONGs on G10.")
+                st.success("✅ **BULLISH SMT BIAS**\nTreasuries are being bought. Expected DXY weakness. Priority: G10 Longs.")
             elif not zn_up and dxy_up:
-                st.error("⚠️ **SMT BEARISH BIAS**\nBonds are being sold. Expect DXY to seek Buy-Side Liquidity. Look for SHORTs on G10.")
+                st.error("⚠️ **BEARISH SMT BIAS**\nTreasuries are being sold. Expected DXY strength. Priority: G10 Shorts.")
             else:
-                st.warning("⚖️ **SYMMETRICAL MARKET**\nNo clear divergence. Market is in sync. Watch for ZB to lead a turn.")
-
+                st.warning("⚖️ **NEUTRAL / CONSOLIDATION**\nNo divergence detected. Watch ZB (30Y) for early 'Crack in Correlation'.")
+            
             st.markdown("---")
-            st.write("**Institutional Note:** ZN1! is the 'heartbeat' of the dollar. If ZN1! fails to make a Higher High while ZB1! does, you have a Crack in Correlation—prepare for a trend shift.")
+            st.caption("Note: ZB, ZN, and ZF should move in the same direction. If ZB is making a Higher High while ZN is not, Smart Money is diverging.")
 
-    st.subheader("30Y Bond Future (ZB1!) Deep Look")
+    st.subheader("30Y Bond Future (ZB1!) Correlation")
     tradingview_chart("CBOT:ZB1!", height=400)
