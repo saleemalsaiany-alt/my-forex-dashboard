@@ -232,12 +232,17 @@ with tab5:
                 st.error("🔥 **BEARISH BONDS**\nExpect: BULLISH DXY / SELL G10")
 
     st.divider()
+    
+    # FIXED CHARTS: Added y-axis scaling logic
     f_col1, f_col2 = st.columns(2)
     with f_col1:
         for title, sym in list(futures_map.items())[:2]:
             st.subheader(f"{title} (Daily)")
-            if title in f_data: st.line_chart(f_data[title]['Close'])
+            if title in f_data: 
+                # Setting use_container_width=True and letting Streamlit auto-scale Y
+                st.line_chart(f_data[title]['Close'], use_container_width=True)
     with f_col2:
         for title, sym in list(futures_map.items())[2:]:
             st.subheader(f"{title} (Daily)")
-            if title in f_data: st.line_chart(f_data[title]['Close'])
+            if title in f_data: 
+                st.line_chart(f_data[title]['Close'], use_container_width=True)
