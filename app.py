@@ -179,10 +179,10 @@ with tab4:
         if not history.empty: 
             st.line_chart(history)
 
-# --- TAB 5: ICT BOND TRADING MENTORSHIP ANALYSIS (FIXED) ---
+# --- TAB 5: ICT BOND TRADING MENTORSHIP ANALYSIS ---
 with tab5:
     st.header("🏛 Bond Futures Lead: ICT Intramarket Analysis")
-    st.write("Daily Timeframe: Analyzing ZB, ZN, and ZF (CME) against the DXY (ICE).")
+    st.write("Daily Timeframe: Comparing ZB, ZN, and ZF (CME) vs DXY.")
     
     futures_map = {"ZB (30Y Bond)": "ZB=F", "ZN (10Y Note)": "ZN=F", "ZF (5Y Note)": "ZF=F", "US Dollar Index (DXY)": "DX-Y.NYB"}
     
@@ -195,38 +195,38 @@ with tab5:
         except: pass
 
     if len(f_data) == 4:
-        st.subheader("🕵️ Smart Money Analysis (Daily)")
-        
+        # ANALYSIS PREP
         last_zb = f_data["ZB (30Y Bond)"]['Close'].iloc[-1]
-        last_zn = f_data["ZN (10Y Note)"]['Close'].iloc[-1]
-        last_zf = f_data["ZF (5Y Note)"]['Close'].iloc[-1]
-        last_dxy = f_data["US Dollar Index (DXY)"]['Close'].iloc[-1]
+        open_zb = f_data["ZB (30Y Bond)"]['Open'].iloc[-1]
+        zf_perf = f_data["ZF (5Y Note)"]['Close'].pct_change(5).iloc[-1]
+        zb_perf = f_data["ZB (30Y Bond)"]['Close'].pct_change(5).iloc[-1]
+
+        # 1. DEFINE BIAS & FINDINGS
+        engine_bearish_dxy = zf_perf > zb_perf
+        price_bearish_dxy = last_zb > open_zb
         
-        dxy_lower_low = last_dxy < f_data["US Dollar Index (DXY)"]['Close'].iloc[-5]
-        bonds_higher_high = (last_zb > f_data["ZB (30Y Bond)"]['Close'].iloc[-5]) or \
-                            (last_zn > f_data["ZN (10Y Note)"]['Close'].iloc[-5]) or \
-                            (last_zf > f_data["ZF (5Y Note)"]['Close'].iloc[-5])
+        # 2. STATUS MATCH INDICATOR
+        st.subheader("🛡 Strategic Status Match")
+        if engine_bearish_dxy == price_bearish_dxy:
+            st.markdown("### :green[🟢 STATUS MATCH: HIGH PROBABILITY]")
+            st.success("The internal Bond Engine (RS) and Price Action are in sync. Condition: **OPTIMAL FOR TRADING.**")
+        else:
+            st.markdown("### :orange[⚠️ JUDAS SWING CONDITION DETECTED]")
+            st.warning("The Bond Engine and Price Action are conflicting. This is likely a **trap or fake-out move.** Wait for alignment.")
+
+        st.divider()
 
         col_anal, col_exec = st.columns([2, 1])
         with col_anal:
             st.markdown("### 📊 Findings")
-            if dxy_lower_low and not bonds_higher_high:
-                st.error("⚠️ **SMT DIVERGENCE:** DXY lower lows / Bonds NO higher highs. Lack of Smart Money sponsorship. Expect DXY reversal higher.")
-            elif not dxy_lower_low and bonds_higher_high:
-                 st.success("✅ **SMT DIVERGENCE:** Bonds higher highs / DXY NO lower lows. Indicates hidden Dollar strength.")
+            if engine_bearish_dxy:
+                st.info("🔍 **RS Comparison:** ZF leading ZB higher. **Internal Bias: BEARISH DXY.**")
             else:
-                st.info("⚖️ **SYMMETRICAL CORRELATION:** Equilibrium. No current SMT 'crack'.")
-
-            zf_perf = f_data["ZF (5Y Note)"]['Close'].pct_change(5).iloc[-1]
-            zb_perf = f_data["ZB (30Y Bond)"]['Close'].pct_change(5).iloc[-1]
-            if zf_perf > zb_perf:
-                st.write("🔍 **RS Comparison:** ZF (Short-term) leading Higher. Risk-Off/Bearish DXY Context.")
-            else:
-                st.write("🔍 **RS Comparison:** ZB (Long-term) leading. Bullish DXY Context.")
+                st.info("🔍 **RS Comparison:** ZB leading ZF higher. **Internal Bias: BULLISH DXY.**")
 
         with col_exec:
             st.markdown("### 🏹 Execution Bias")
-            if last_zb > f_data["ZB (30Y Bond)"]['Open'].iloc[-1]:
+            if price_bearish_dxy:
                 st.success("💎 **BULLISH BONDS**\nExpect: BEARISH DXY / BUY G10")
             else:
                 st.error("🔥 **BEARISH BONDS**\nExpect: BULLISH DXY / SELL G10")
