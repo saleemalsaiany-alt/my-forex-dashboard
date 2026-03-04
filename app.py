@@ -22,7 +22,7 @@ def get_live_news():
     except:
         return []
 
-# 3. FRED HISTORY ENGINE
+# 3. FRED HISTORY ENGINE (FOR TAB 4)
 def get_fred_history(series_id):
     try:
         url = f"https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key={FRED_API_KEY}&file_type=json&sort_order=desc&limit=90"
@@ -90,14 +90,14 @@ def calculate_ict_probability(ticker, range_min, range_max):
 
 # 6. MASTER DATA
 market_logic = {
-    "EURUSD=X": {"name": "EUR/USD", "story": "Euro/Bund Story", "min": 65, "max": 85, "deep": "ECB on hold.", "bond": "Bund 10Y vs US 10Y", "target": "🏹 Target: 1.1680"},
-    "JPY=X": {"name": "USD/JPY", "story": "The Carry Flip", "min": 105, "max": 140, "deep": "BoJ eyes rate hike.", "bond": "JGB 10Y vs US 10Y", "target": "🏹 Target: 153.20"},
-    "GBPUSD=X": {"name": "GBP/USD", "story": "Cable Gilt Drift", "min": 85, "max": 115, "deep": "UK inflation sticky.", "bond": "Gilt 10Y vs US 10Y", "target": "🏹 Target: 1.3580"},
-    "AUDUSD=X": {"name": "AUD/USD", "story": "Resource Carry", "min": 65, "max": 85, "deep": "RBA hawkish.", "bond": "AU 10Y vs US 10Y", "target": "🏹 Target: 0.7150"},
-    "GBPJPY=X": {"name": "GBP/JPY", "story": "Beast Volatility", "min": 140, "max": 200, "deep": "UK yields vs BoJ.", "bond": "UK Gilt vs JGB", "target": "🏹 Target: 212.50"},
-    "EURJPY=X": {"name": "EUR/JPY", "story": "Euro-Yen Flow", "min": 120, "max": 170, "deep": "Euro resilience.", "bond": "Bund vs JGB", "target": "🏹 Target: 186.20"},
-    "NZDUSD=X": {"name": "NZD/USD", "story": "Kiwi Growth Lag", "min": 60, "max": 90, "deep": "RBNZ prioritized growth.", "bond": "NZ vs US 10Y", "target": "🏹 Target: 0.5880"},
-    "USDCAD=X": {"name": "USD/CAD", "story": "Loonie Tariff Watch", "min": 75, "max": 100, "deep": "CAD underperforming.", "bond": "CA vs US 10Y", "target": "🏹 Target: 1.3930"}
+    "EURUSD=X": {"name": "EUR/USD", "story": "The Euro/Bund Story", "min": 65, "max": 85, "bank": "ECB", "sentiment": "Neutral", "deep": "ECB on hold until Dec.", "bond": "Bund 10Y vs US 10Y", "news": "Tue: Eurozone CPI.", "target": "🏹 Target: 1.1680"},
+    "JPY=X": {"name": "USD/JPY", "story": "The Carry Flip", "min": 105, "max": 140, "bank": "BoJ", "sentiment": "Hawkish-Lean", "deep": "BoJ eyes April rate hike.", "bond": "JGB 10Y vs US 10Y", "news": "Tue: BoJ Gov Ueda Speech.", "target": "🏹 Target: 153.20"},
+    "GBPUSD=X": {"name": "GBP/USD", "story": "The Cable Gilt Drift", "min": 85, "max": 115, "bank": "BoE", "sentiment": "Hold", "deep": "Support at 1.3450.", "bond": "Gilt 10Y vs US 10Y", "news": "Fri: US NFP Payrolls.", "target": "🏹 Target: 1.3580"},
+    "AUDUSD=X": {"name": "AUD/USD", "story": "The Resource Carry", "min": 65, "max": 85, "bank": "RBA", "sentiment": "Hawkish", "deep": "RBA 3.85% yield driver.", "bond": "AU 10Y vs US 10Y", "news": "Wed: AU GDP q/q.", "target": "🏹 Target: 0.7150"},
+    "GBPJPY=X": {"name": "GBP/JPY", "story": "The Beast Volatility", "min": 140, "max": 200, "bank": "BoE/BoJ", "sentiment": "Volatile", "deep": "UK Gilt yields vs BoJ.", "bond": "UK Gilt 10Y vs JGB 10Y", "news": "Thu: UK MPC Meeting Minutes.", "target": "🏹 Target: 212.50"},
+    "EURJPY=X": {"name": "EUR/JPY", "story": "Euro-Yen Cross Flow", "min": 120, "max": 170, "bank": "ECB/BoJ", "sentiment": "Neutral-Bullish", "deep": "Euro resilience meets Yen weakness.", "bond": "Bund 10Y vs JGB 10Y", "news": "Tue: Eurozone CPI.", "target": "🏹 Target: 186.20"},
+    "NZDUSD=X": {"name": "NZD/USD", "story": "Kiwi Growth Lag", "min": 60, "max": 90, "bank": "RBNZ", "sentiment": "Dovish", "deep": "RBNZ prioritizing growth.", "bond": "NZ 10Y vs US 10Y", "news": "Tue: NZ Terms of Trade.", "target": "🏹 Target: 0.5880"},
+    "USDCAD=X": {"name": "USD/CAD", "story": "Loonie Tariff Watch", "min": 75, "max": 100, "bank": "BoC", "sentiment": "Cautious", "deep": "CAD underperforming on tariffs.", "bond": "CA 10Y vs US 10Y", "news": "Wed: Canada GDP.", "target": "🏹 Target: 1.3930"}
 }
 
 # 7. SIDEBAR
@@ -126,78 +126,103 @@ st.divider()
 # 9. THE TABS
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["🖥 Market Grid", "🥩 Summary", "📅 Intelligence", "📈 Yield Charts", "🏛 Bond Futures Lead"])
 
-# [Tab 1-4 logic remains exactly the same as previous stable version]
-# ... (omitted for brevity but included in full script) ...
+with tab1:
+    cols = st.columns(3)
+    for i, (ticker, info) in enumerate(market_logic.items()):
+        with cols[i % 3]:
+            score, pips, status, ratio, _, _ = calculate_ict_probability(ticker, info['min'], info['max'])
+            try:
+                price = yf.Ticker(ticker).history(period="1d")['Close'].iloc[-1]
+                st.markdown(f"### {info['name']}")
+                st.metric("Price", f"{price:.4f}", f"{pips:.1f} Pips")
+                color = "green" if score >= 70 else "orange" if score >= 40 else "red"
+                st.markdown(f"**ICT Conviction: :{color}[{score}% ({status})]**")
+                st.progress(score / 100)
+                spread, yield_trend, divergence, _, src_tag = get_yield_details(info['name'])
+                with st.expander("🔍 Strategic Analysis", expanded=True):
+                    st.markdown(f"**Market Sentiment:** {info['deep']}")
+                    st.markdown(f"**Yield Trend:** `{yield_trend}`") 
+                    st.markdown(f"**Status:** `{divergence}`")
+                    st.markdown(f"**Bond Context:** {info['bond']} | **Spread: {spread:.3f}% ({src_tag})**")
+                    st.info(info['target'])
+            except: st.error(f"Stream Down: {info['name']}")
 
+with tab2:
+    st.header("Institutional Executive Summary")
+    summary_list = []
+    for ticker, info in market_logic.items():
+        score, _, status, ratio, _, _ = calculate_ict_probability(ticker, info['min'], info['max'])
+        spread, yield_trend, divergence, _, src_tag = get_yield_details(info['name'])
+        summary_list.append({"Pair": info['name'], "Conviction": f"{score}% ({status})", "Yield Trend": yield_trend, "Signal": divergence, "Spread": f"{spread:.3f}% ({src_tag})", "Target": info['target']})
+    st.dataframe(pd.DataFrame(summary_list), use_container_width=True, hide_index=True)
+
+with tab3:
+    st.header(f"📅 Daily Closing Intelligence")
+    for ticker, info in market_logic.items():
+        score, pips, _, ratio, prev, last = calculate_ict_probability(ticker, info['min'], info['max'])
+        spread, trend, div, us_yield, _ = get_yield_details(info['name'])
+        dir_text = "downside" if last['Close'] < last['Open'] else "upside"
+        move_pips = abs(last['Close'] - last['Open']) * (100 if "JPY" in ticker else 10000)
+        st.subheader(f"{info['name']} ({info['story']})")
+        st.markdown(f"**Yesterday:** Price closed with displacement to the {dir_text} ({move_pips:.1f} pips). US 10Y is at {us_yield:.2f}%.")
+        st.divider()
+
+with tab4:
+    st.header("📈 FRED Anchor: Institutional Yield Trends")
+    c_choice = st.selectbox("Select Bond Yield to Visualize", ["US 10Y (Benchmark)", "Australia 10Y", "New Zealand 10Y", "Japan 10Y", "UK 10Y", "Germany 10Y", "Canada 10Y"])
+    fred_id_map = {"US 10Y (Benchmark)": "DGS10", "Australia 10Y": "IRLTLT01AUM156N", "New Zealand 10Y": "IRLTLT01NZM156N", "Japan 10Y": "IRLTLT01JPM156N", "UK 10Y": "IRLTLT01GBM156N", "Germany 10Y": "IRLTLT01DEM156N", "Canada 10Y": "IRLTLT01CAM156N"}
+    selected_id = fred_id_map[c_choice]
+    with st.spinner(f"Fetching 90-day history for {c_choice}..."):
+        history = get_fred_history(selected_id)
+        if not history.empty: st.line_chart(history)
+
+# --- NEW TAB 5: BOND FUTURES LEAD ---
 with tab5:
-    st.header("🏛 Bond Futures Lead: ICT Intramarket Analysis")
-    st.write("Daily Timeframe: Analyzing ZB, ZN, and ZF (CME) against the DXY (ICE).")
+    st.header("🏛 Bond Futures Lead: Institutional SMT Engine")
+    st.write("yFinance Native: Comparing ZB (30Y), ZN (10Y), and ZF (5Y) to determine DXY Bias.")
     
     futures_map = {"ZB (30Y Bond)": "ZB=F", "ZN (10Y Note)": "ZN=F", "ZF (5Y Note)": "ZF=F", "US Dollar Index (DXY)": "DX-Y.NYB"}
     
-    # 1. FETCH DAILY DATA FOR ICT FINDINGS
-    f_data = {}
+    # ANALYSIS SECTION
+    analysis_data = {}
     for name, sym in futures_map.items():
         try:
-            df = yf.Ticker(sym).history(period="60d", interval="1d")
+            df = yf.Ticker(sym).history(period="2d", interval="15m")
             if not df.empty:
-                f_data[name] = df
+                current, prev = df['Close'].iloc[-1], df['Close'].iloc[-2]
+                analysis_data[name] = {"price": current, "pct": ((current - prev) / prev) * 100}
         except: pass
 
-    # 2. ANALYSIS & FINDINGS (ICT Month 10 Implementation)
-    if len(f_data) == 4:
-        st.subheader("🕵️ Smart Money Analysis (Daily)")
+    if len(analysis_data) >= 4:
+        st.subheader("🛡 Institutional Directional Bias")
+        bond_strength = (analysis_data["ZB (30Y Bond)"]["pct"] + analysis_data["ZN (10Y Note)"]["pct"] + analysis_data["ZF (5Y Note)"]["pct"]) / 3
+        dxy_strength = analysis_data["US Dollar Index (DXY)"]["pct"]
         
-        # Calculate recent highs/lows for SMT
-        last_zb = f_data["ZB (30Y Bond)"]['Close'].iloc[-1]
-        last_zn = f_data["ZN (10Y Note)"]['Close'].iloc[-1]
-        last_dxy = f_data["US Dollar Index (DXY)"]['Close'].iloc[-1]
-        
-        # SMT Check: Crack in Correlation
-        zb_up = f_data["ZB (30Y Bond)"]['Close'].iloc[-1] > f_data["ZB (30Y Bond)"]['Close'].iloc[-5]
-        zn_up = f_data["ZN (10Y Note)"]['Close'].iloc[-1] > f_data["ZN (10Y Note)"]['Close'].iloc[-5]
-        dxy_down = f_data["US Dollar Index (DXY)"]['Close'].iloc[-1] < f_data["US Dollar Index (DXY)"]['Close'].iloc[-5]
-
-        col_anal, col_exec = st.columns([2, 1])
-        with col_anal:
-            st.markdown("### 📊 Findings")
-            # Logic: If DXY makes lower low but ZB/ZN fails to make higher high = SMT
-            if dxy_down and not (zb_up and zn_up):
-                st.error("⚠️ **SMT DIVERGENCE DETECTED:** DXY is seeking liquidity low, but Bond basket lacks Smart Money sponsorship for higher prices. Potential DXY reversal higher.")
-            elif not dxy_down and (zb_up or zn_up):
-                st.success("✅ **BULLISH BOND FLOW:** Institutional Order Flow is respecting bullish PD arrays in Bonds. Bias for DXY is seeking Sell-Side Liquidity.")
+        col_a, col_b = st.columns([1, 2])
+        with col_a:
+            if bond_strength > 0 and dxy_strength < 0:
+                st.success("💎 BIAS: BEARISH DXY (RISK ON)")
+            elif bond_strength < 0 and dxy_strength > 0:
+                st.error("🔥 BIAS: BULLISH DXY (RISK OFF)")
             else:
-                st.info("⚖️ **SYMMETRICAL CORRELATION:** DXY and Bonds are moving inversely in a healthy manner. No crack in correlation.")
-            
-            # Relative Strength (ZF lead)
-            zf_strength = f_data["ZF (5Y Note)"]['Close'].pct_change(5).iloc[-1]
-            zb_strength = f_data["ZB (30Y Bond)"]['Close'].pct_change(5).iloc[-1]
-            if zf_strength > zb_strength:
-                st.caption("🔍 **RS Comparison:** Short-term rates (ZF) are leading the move. Suggests hawkish rate expectation shifts.")
+                st.warning("⚖️ BIAS: NEUTRAL / SMT")
 
-        with col_exec:
-            st.markdown("### 🏹 Execution Bias")
-            if zb_up and zn_up:
-                st.write("**Bias:** 📉 BEARISH DOLLAR")
-                st.info("Focus: G10 Longs (EUR/GBP/AUD)")
-            elif not zb_up and not zn_up:
-                st.write("**Bias:** 📈 BULLISH DOLLAR")
-                st.info("Focus: G10 Shorts (EUR/GBP/AUD)")
-            else:
-                st.write("**Bias:** ⚖️ NEUTRAL")
+        with col_b:
+            if bond_strength > 0: st.info("🎯 **Strategy: BUY G10 against USD**\nPriority: EUR/USD, GBP/USD, AUD/USD. Look for OTE long entries.")
+            elif bond_strength < 0: st.info("🎯 **Strategy: SELL G10 against USD**\nPriority: EUR/USD, GBP/USD, AUD/USD. Look for liquidity raids.")
+            else: st.write("Wait for the I-Session displacement to confirm.")
 
     st.divider()
-
-    # 3. DAILY CHARTS
+    
     f_col1, f_col2 = st.columns(2)
     with f_col1:
         for title, sym in list(futures_map.items())[:2]:
             st.subheader(title)
-            if title in f_data: st.line_chart(f_data[title]['Close'])
+            data = yf.Ticker(sym).history(period="3d", interval="5m")
+            if not data.empty: st.line_chart(data['Close'])
                 
     with f_col2:
         for title, sym in list(futures_map.items())[2:]:
             st.subheader(title)
-            if title in f_data: st.line_chart(f_data[title]['Close'])
-
-    st.caption("Note: Bonds prices move inversely to DXY. Respect the Daily Order Block/Fair Value Gaps for direction.")
+            data = yf.Ticker(sym).history(period="3d", interval="5m")
+            if not data.empty: st.line_chart(data['Close'])
