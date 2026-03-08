@@ -4,7 +4,7 @@ import pandas as pd
 import feedparser
 import requests
 from streamlit_autorefresh import st_autorefresh
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # --- API CONFIG ---
 FRED_API_KEY = "ffc7165283883a234b7d4350877d4ab3"
@@ -126,7 +126,6 @@ st.divider()
 # 9. THE TABS
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["🖥 Market Grid", "🥩 Summary", "📅 Intelligence", "📈 Yield Charts", "🏛 Bond Futures Lead"])
 
-# ... (Tabs 1-4 remain exactly as before) ...
 with tab1:
     cols = st.columns(3)
     for i, (ticker, info) in enumerate(market_logic.items()):
@@ -180,79 +179,106 @@ with tab4:
         if not history.empty: 
             st.line_chart(history)
 
-# --- TAB 5: UPDATED WITH LEAD INDICATOR ---
+# --- TAB 5: ADVANCED LEAD INDICATOR (DAYS, WEEKS, MONTHS) ---
 with tab5:
     st.header("🏛 Bond Futures Lead: ICT Intramarket Analysis")
-    st.write("Daily Timeframe: Comparing ZB, ZN, and ZF (CME) vs DXY.")
+    st.write("Cross-Timeframe Analysis: Identifying cracks in correlation across Days, Weeks, and Months.")
     
     futures_map = {"ZB (30Y Bond)": "ZB=F", "ZN (10Y Note)": "ZN=F", "ZF (5Y Note)": "ZF=F", "US Dollar Index (DXY)": "DX-Y.NYB"}
     
     f_data = {}
     for name, sym in futures_map.items():
         try:
-            df = yf.Ticker(sym).history(period="60d", interval="1d")
+            df = yf.Ticker(sym).history(period="1y", interval="1d")
             if not df.empty: f_data[name] = df
         except: pass
 
     if len(f_data) == 4:
-        # 1. CORE STATUS MATCH
-        last_zb = f_data["ZB (30Y Bond)"]['Close'].iloc[-1]
-        open_zb = f_data["ZB (30Y Bond)"]['Open'].iloc[-1]
+        # 1. CORE STATUS MATCH (5D PERFORMANCE)
         zf_perf = f_data["ZF (5Y Note)"]['Close'].pct_change(5).iloc[-1]
         zb_perf = f_data["ZB (30Y Bond)"]['Close'].pct_change(5).iloc[-1]
         engine_bearish_dxy = zf_perf > zb_perf
-        price_bearish_dxy = last_zb > open_zb
+        price_bearish_dxy = f_data["ZB (30Y Bond)"]['Close'].iloc[-1] > f_data["ZB (30Y Bond)"]['Open'].iloc[-1]
 
-        # 2. NEW: LEAD INDICATOR LOGIC (MARKET STRUCTURE SHIFT)
-        # Check if any Bond has broken 5-day high/low while DXY hasn't
-        def check_mss(df):
+        # 2. MULTI-TIMEFRAME MSS ENGINE
+        def find_mss_breaks(df, name):
             last_close = df['Close'].iloc[-1]
-            high_5d = df['High'].iloc[-6:-1].max()
-            low_5d = df['Low'].iloc[-6:-1].min()
-            if last_close > high_5d: return "BULLISH_MSS"
-            if last_close < low_5d: return "BEARISH_MSS"
-            return "NONE"
+            last_date = df.index[-1]
+            
+            # Daily (Yesterday's High/Low)
+            y_high, y_low = df['High'].iloc[-2], df['Low'].iloc[-2]
+            y_name = (last_date - timedelta(days=1)).strftime('%A')
+            
+            # Weekly (Previous Week)
+            w_high = df['High'].iloc[-10:-5].max()
+            w_low = df['Low'].iloc[-10:-5].min()
+            
+            # Monthly (Previous Month)
+            m_high = df['High'].iloc[-30:-5].max()
+            m_low = df['Low'].iloc[-30:-5].min()
+            m_name = (last_date - timedelta(days=20)).strftime('%B')
 
-        mss_zb = check_mss(f_data["ZB (30Y Bond)"])
-        mss_dxy = check_mss(f_data["US Dollar Index (DXY)"])
+            breaks = []
+            if last_close > y_high: breaks.append(f"broke {y_name}'s High")
+            if last_close < y_low: breaks.append(f"broke {y_name}'s Low")
+            if last_close > w_high: breaks.append("broke Previous Week's High")
+            if last_close < w_low: breaks.append("broke Previous Week's Low")
+            if last_close > m_high: breaks.append(f"broke {m_name}'s High")
+            if last_close < m_low: breaks.append(f"broke {m_name}'s Low")
+            return breaks
+
+        # Gather breaks for all instruments
+        zb_breaks = find_mss_breaks(f_data["ZB (30Y Bond)"], "ZB")
+        dxy_breaks = find_mss_breaks(f_data["US Dollar Index (DXY)"], "DXY")
 
         st.subheader("🛡 Strategic Status Match")
         if engine_bearish_dxy == price_bearish_dxy:
             st.markdown("### :green[🟢 STATUS MATCH: HIGH PROBABILITY]")
-            st.success("The internal Bond Engine (RS) and Price Action are in sync.")
         else:
             st.markdown("### :orange[⚠️ JUDAS SWING CONDITION DETECTED]")
-            st.warning("The Bond Engine and Price Action are conflicting. This is likely a trap.")
 
-        # --- LEAD INDICATOR ALERT BOX ---
-        st.subheader("🚨 Lead Indicator Alert")
-        if mss_zb != "NONE" and mss_dxy == "NONE":
-            direction = "BULLISH (Bearish DXY)" if mss_zb == "BULLISH_MSS" else "BEARISH (Bullish DXY)"
-            st.info(f"💡 **HEADS-UP:** Bonds have shifted structure **{direction}**, but DXY is lagging. Institutional shift is likely starting.")
-        elif mss_dxy != "NONE" and mss_zb == "NONE":
-            st.error("⚠️ **CAUTION:** DXY is breaking structure but Bonds are **not confirming.** Possible stop-run.")
-        else:
-            st.write("Current Market Structure is convergent across Bonds and DXY.")
+        # --- ADVANCED LEAD INDICATOR ALERT BOX ---
+        st.subheader("🚨 Advanced Lead Indicator")
+        
+        # SMT / Divergence detection logic
+        divergence_found = False
+        for b_break in zb_breaks:
+            # If ZB broke a low but DXY did NOT break its corresponding high (Inverse)
+            if "Low" in b_break:
+                matching_high = b_break.replace("Low", "High")
+                if matching_high not in dxy_breaks:
+                    st.info(f"💡 **HEADS-UP:** Bonds {b_break}, but DXY has NOT broken the inverse High. **Bearish SMT / DXY Weakness.**")
+                    divergence_found = True
+            
+            # If ZB broke a high but DXY did NOT break its corresponding low
+            if "High" in b_break:
+                matching_low = b_break.replace("High", "Low")
+                if matching_low not in dxy_breaks:
+                    st.success(f"💡 **HEADS-UP:** Bonds {b_break}, but DXY has NOT broken the inverse Low. **Bullish SMT / DXY Strength.**")
+                    divergence_found = True
+
+        if not divergence_found:
+            st.write("Current Market Structure is convergent across Daily, Weekly, and Monthly cycles.")
 
         st.divider()
         col_anal, col_exec = st.columns([2, 1])
         with col_anal:
-            st.markdown("### 📊 Findings")
-            if engine_bearish_dxy: st.info("🔍 **RS Comparison:** ZF leading ZB higher. **Internal Bias: BEARISH DXY.**")
-            else: st.info("🔍 **RS Comparison:** ZB leading ZF higher. **Internal Bias: BULLISH DXY.**")
+            st.markdown("### 📊 Internal Bond RS")
+            if engine_bearish_dxy: st.info("🔍 ZF leading ZB higher. (Bearish DXY Bias)")
+            else: st.info("🔍 ZB leading ZF higher. (Bullish DXY Bias)")
 
         with col_exec:
             st.markdown("### 🏹 Execution Bias")
-            if price_bearish_dxy: st.success("💎 **BULLISH BONDS**\nExpect: BEARISH DXY / BUY G10")
-            else: st.error("🔥 **BEARISH BONDS**\nExpect: BULLISH DXY / SELL G10")
+            if price_bearish_dxy: st.success("💎 BULLISH BONDS (Buy G10)")
+            else: st.error("🔥 BEARISH BONDS (Sell G10)")
 
     st.divider()
     f_col1, f_col2 = st.columns(2)
     with f_col1:
         for title in list(futures_map.keys())[:2]:
-            st.subheader(f"{title} (Daily)")
+            st.subheader(f"{title}")
             if title in f_data: st.line_chart(f_data[title]['Close'], use_container_width=True)
     with f_col2:
         for title in list(futures_map.keys())[2:]:
-            st.subheader(f"{title} (Daily)")
+            st.subheader(f"{title}")
             if title in f_data: st.line_chart(f_data[title]['Close'], use_container_width=True)
